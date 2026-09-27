@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
-  ShieldAlert,
+  ShieldCheck,
   UploadCloud,
   LayoutDashboard,
   Layers,
@@ -38,212 +38,205 @@ export const AnalystLayout: React.FC = () => {
   };
 
   const navItems = [
-    { to: '/', label: 'Overview', icon: <LayoutDashboard size={18} /> },
-    { to: '/intake', label: 'Intake & PCAP', icon: <UploadCloud size={18} /> },
-    { to: '/sessions', label: 'Sessions Inventory', icon: <Layers size={18} /> },
-    { to: '/findings', label: 'Security Findings', icon: <ShieldAlert size={18} /> },
-    { to: '/evidence', label: 'Evidence Explorer', icon: <Activity size={18} /> },
-    { to: '/infrastructure', label: 'Infrastructure', icon: <Server size={18} /> },
-    { to: '/drifts', label: 'Cryptographic Drift', icon: <TrendingDown size={18} /> },
-    { to: '/timeline', label: 'Forensic Timeline', icon: <Clock size={18} /> },
-    { to: '/reports', label: 'Reports', icon: <FileText size={18} /> },
+    { to: '/', label: 'Overview', icon: <LayoutDashboard size={16} /> },
+    { to: '/intake', label: 'Intake & PCAP', icon: <UploadCloud size={16} /> },
+    { to: '/sessions', label: 'Sessions', icon: <Layers size={16} /> },
+    { to: '/findings', label: 'Security Findings', icon: <ShieldCheck size={16} /> },
+    { to: '/evidence', label: 'Evidence Explorer', icon: <Activity size={16} /> },
+    { to: '/infrastructure', label: 'Infrastructure', icon: <Server size={16} /> },
+    { to: '/drifts', label: 'Cryptographic Drift', icon: <TrendingDown size={16} /> },
+    { to: '/timeline', label: 'Forensic Timeline', icon: <Clock size={16} /> },
+    { to: '/reports', label: 'Reports', icon: <FileText size={16} /> },
   ];
 
   return (
     <div className="app-shell">
-      <div className="grid-overlay" />
-
       {/* Sidebar Navigation */}
       <aside className={`app-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-        <div
-          style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--color-border)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-          }}
-        >
-          <ShieldAlert size={24} style={{ color: 'var(--color-accent-cyan)' }} />
+
+        {/* Logo / Brand */}
+        <div className="sidebar-logo">
+          <ShieldCheck size={22} className="sidebar-logo-icon" />
           <div>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '0.02em', color: 'var(--color-text)' }}>
-              SecureMailScope
-            </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Forensic Workspace
-            </div>
+            <div className="sidebar-logo-name">SecureMailScope</div>
+            <div className="sidebar-logo-tagline">Forensic Investigation Platform</div>
           </div>
         </div>
 
-        <nav style={{ padding: '12px var(--space-3)', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {/* Navigation Items */}
+        <div className="sidebar-section-label">Investigation Workspaces</div>
+        <nav className="sidebar-nav">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === '/'}
               onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) => `btn btn--ghost ${isActive ? 'active-nav' : ''}`}
-              style={({ isActive }) => ({
-                justifyContent: 'flex-start',
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: '6px',
-                color: isActive ? 'var(--color-accent-cyan)' : 'var(--color-text-secondary)',
-                backgroundColor: isActive ? 'var(--color-accent-cyan-glow)' : 'transparent',
-                borderLeft: isActive ? '3px solid var(--color-accent-cyan)' : '3px solid transparent',
-              })}
+              className={({ isActive }) =>
+                `sidebar-nav-item${isActive ? ' active' : ''}`
+              }
             >
-              {item.icon}
-              <span style={{ fontSize: '0.875rem' }}>{item.label}</span>
+              <span className="sidebar-nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div
-          style={{
-            padding: '12px 16px',
-            borderTop: '1px solid var(--color-border)',
-            fontSize: '0.75rem',
-            color: 'var(--color-text-tertiary)',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>SIH 2026 PS 26159</span>
+        {/* Footer */}
+        <div className="sidebar-footer">
+          <span>SIH 2026 · PS 26159</span>
           <span>v1.0.0</span>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="app-content">
-        {/* Top Header */}
+
+        {/* Top Header Bar */}
         <header className="app-topbar">
           <button
             className="btn btn--ghost mobile-menu-toggle"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             style={{ display: 'none', marginRight: '8px' }}
+            aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
 
-          {/* Active Context Picker */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Capture Context:
+          {/* Active Capture Context Picker */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+            <span
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Capture Context
             </span>
             <select
               value={activeCapture?.id || ''}
               onChange={(e) => selectCaptureById(e.target.value)}
               className="input"
-              style={{ maxWidth: '280px', padding: '4px 8px', fontSize: '0.85rem' }}
+              style={{ maxWidth: '280px', padding: '5px 8px', fontSize: 'var(--text-sm)' }}
             >
               {capturesList.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.filename} ({c.total_packets} pkts)
+                  {c.filename} ({c.total_packets.toLocaleString()} pkts)
                 </option>
               ))}
               {capturesList.length === 0 && <option value="">No captures ingested</option>}
             </select>
 
             {activeCapture && (
-              <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>
-                SHA-256: {activeCapture.sha256_hash.substring(0, 12)}...
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.7rem',
+                  color: 'var(--color-text-muted)',
+                  background: 'var(--color-bg-primary)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '2px 6px',
+                }}
+              >
+                SHA-256: {activeCapture.sha256_hash.substring(0, 12)}…
               </span>
             )}
           </div>
 
-          {/* Intake Action */}
-          <button
-            onClick={() => navigate('/intake')}
-            className="btn btn--secondary"
-            style={{ marginRight: '12px', padding: '6px 12px', fontSize: '0.8rem' }}
-          >
-            <UploadCloud size={16} /> New PCAP
-          </button>
-
-          {/* Report Export Menu */}
-          <div style={{ position: 'relative' }}>
+          {/* Action Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
-              onClick={() => setShowReportDropdown(!showReportDropdown)}
-              className="btn btn--primary"
-              disabled={!activeJob}
-              style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+              onClick={() => navigate('/intake')}
+              className="btn btn--secondary"
+              style={{ padding: '5px 12px', fontSize: 'var(--text-sm)' }}
             >
-              <Download size={16} /> Export Report <ChevronDown size={14} />
+              <UploadCloud size={15} />
+              New PCAP
             </button>
 
-            {showReportDropdown && activeJob && (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '100%',
-                  marginTop: '6px',
-                  backgroundColor: 'var(--color-surface)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 100,
-                  minWidth: '180px',
-                  padding: '4px 0',
-                }}
+            {/* Report Export Dropdown */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowReportDropdown(!showReportDropdown)}
+                className="btn btn--primary"
+                disabled={!activeJob}
+                style={{ padding: '5px 13px', fontSize: 'var(--text-sm)' }}
               >
-                <button
-                  onClick={() => handleReportAction('json')}
+                <Download size={15} />
+                Export Report
+                <ChevronDown size={13} style={{ marginLeft: '2px' }} />
+              </button>
+
+              {showReportDropdown && activeJob && (
+                <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    padding: '8px 14px',
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-text)',
-                    fontSize: '0.85rem',
-                    textAlign: 'left',
-                    cursor: 'pointer',
+                    position: 'absolute',
+                    right: 0,
+                    top: 'calc(100% + 6px)',
+                    backgroundColor: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-lg)',
+                    boxShadow: 'var(--shadow-lg)',
+                    zIndex: 'var(--z-dropdown)',
+                    minWidth: '200px',
+                    padding: '6px 0',
+                    overflow: 'hidden',
                   }}
                 >
-                  <FileCode size={16} style={{ color: 'var(--color-accent-cyan)' }} /> JSON Data Graph
-                </button>
-                <button
-                  onClick={() => handleReportAction('html')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    padding: '8px 14px',
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-text)',
-                    fontSize: '0.85rem',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <FileSpreadsheet size={16} style={{ color: 'var(--color-accent-indigo)' }} /> Dark HTML Report
-                </button>
-                <button
-                  onClick={() => handleReportAction('pdf')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    padding: '8px 14px',
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-text)',
-                    fontSize: '0.85rem',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <FileText size={16} style={{ color: 'var(--color-high)' }} /> Download PDF Report
-                </button>
-              </div>
-            )}
+                  {[
+                    {
+                      format: 'json' as const,
+                      label: 'JSON Data Export',
+                      icon: <FileCode size={15} style={{ color: 'var(--color-accent)' }} />,
+                    },
+                    {
+                      format: 'html' as const,
+                      label: 'HTML Report',
+                      icon: <FileSpreadsheet size={15} style={{ color: 'var(--color-info)' }} />,
+                    },
+                    {
+                      format: 'pdf' as const,
+                      label: 'Download PDF Report',
+                      icon: <FileText size={15} style={{ color: 'var(--color-critical)' }} />,
+                    },
+                  ].map(({ format, label, icon }) => (
+                    <button
+                      key={format}
+                      onClick={() => handleReportAction(format)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        padding: '9px 16px',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-text)',
+                        fontSize: 'var(--text-sm)',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'background var(--transition-fast)',
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background =
+                          'var(--color-surface-hover)';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = 'none';
+                      }}
+                    >
+                      {icon}
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -251,6 +244,11 @@ export const AnalystLayout: React.FC = () => {
         <main className="app-page">
           <Outlet />
         </main>
+
+        {/* Subtle forensic watermark */}
+        <div className="forensic-watermark">
+          SECUREMAILSCOPE · FORENSIC ANALYSIS PLATFORM · SIH-2026-PS-26159
+        </div>
       </div>
     </div>
   );

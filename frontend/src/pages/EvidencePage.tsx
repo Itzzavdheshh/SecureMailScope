@@ -66,7 +66,7 @@ export const EvidencePage: React.FC = () => {
       {/* Filter Bar */}
       <div className="card" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.85rem', fontWeight: 600 }}>
-          <Filter size={16} style={{ color: 'var(--color-accent-cyan)' }} /> Evidence Filters
+          <Filter size={16} style={{ color: 'var(--color-accent)' }} /> Evidence Filters
         </div>
 
         <div className="grid-content" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
@@ -131,7 +131,7 @@ export const EvidencePage: React.FC = () => {
             <tbody>
               {data.items.map((ev) => (
                 <tr key={ev.id}>
-                  <td className="mono" style={{ fontWeight: 700, color: 'var(--color-accent-cyan)' }}>
+                  <td className="mono" style={{ fontWeight: 700, color: 'var(--color-accent)' }}>
                     #{ev.frame_number}
                   </td>
                   <td className="mono" style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
@@ -142,7 +142,7 @@ export const EvidencePage: React.FC = () => {
                       style={{
                         padding: '2px 6px',
                         borderRadius: '4px',
-                        background: 'var(--color-bg-secondary)',
+                        background: 'var(--color-bg-primary)',
                         fontSize: '0.75rem',
                         fontWeight: 600,
                       }}
@@ -166,7 +166,7 @@ export const EvidencePage: React.FC = () => {
                         <Layers size={14} /> Session
                       </Link>
                     ) : (
-                      <span style={{ color: 'var(--color-text-tertiary)', fontSize: '0.75rem' }}>-</span>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>-</span>
                     )}
                   </td>
                 </tr>

@@ -62,7 +62,7 @@ export const SessionsPage: React.FC = () => {
       {/* Filter Toolbar */}
       <div className="card" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.85rem', fontWeight: 600 }}>
-          <Filter size={16} style={{ color: 'var(--color-accent-cyan)' }} /> Server-Side Session Filters
+          <Filter size={16} style={{ color: 'var(--color-accent)' }} /> Server-Side Session Filters
         </div>
 
         <div className="grid-content" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
@@ -171,7 +171,7 @@ export const SessionsPage: React.FC = () => {
                   <td className="mono" style={{ fontSize: '0.8rem' }}>
                     {s.server_ip}:{s.server_port}
                     {s.hostname && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{s.hostname}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{s.hostname}</div>
                     )}
                   </td>
                   <td>
@@ -179,7 +179,7 @@ export const SessionsPage: React.FC = () => {
                       style={{
                         padding: '2px 6px',
                         borderRadius: '4px',
-                        background: 'var(--color-bg-secondary)',
+                        background: 'var(--color-bg-primary)',
                         fontWeight: 600,
                         fontSize: '0.75rem',
                       }}
@@ -192,13 +192,13 @@ export const SessionsPage: React.FC = () => {
                   </td>
                   <td>
                     {s.tls_handshake?.negotiated_tls_version ? (
-                      <span className="mono" style={{ color: 'var(--color-accent-cyan)' }}>
+                      <span className="mono" style={{ color: 'var(--color-accent)' }}>
                         {s.tls_handshake.negotiated_tls_version}
                       </span>
                     ) : s.is_tls_implicit ? (
-                      <span style={{ color: 'var(--color-accent-indigo)', fontSize: '0.8rem' }}>Implicit TLS</span>
+                      <span style={{ color: 'var(--color-info)', fontSize: '0.8rem' }}>Implicit TLS</span>
                     ) : (
-                      <span style={{ color: 'var(--color-text-tertiary)', fontSize: '0.8rem' }}>Plaintext</span>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>Plaintext</span>
                     )}
                   </td>
                   <td className="hash" style={{ maxWidth: '180px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>

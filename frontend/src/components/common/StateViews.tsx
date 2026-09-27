@@ -4,7 +4,7 @@ import { AlertTriangle, Database, Loader2 } from 'lucide-react';
 export const LoadingState: React.FC<{ message?: string }> = ({ message = 'Loading forensic evidence...' }) => {
   return (
     <div className="empty-state" style={{ minHeight: '240px' }}>
-      <Loader2 className="empty-state__icon spinner" size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-accent-cyan)' }} />
+      <Loader2 className="empty-state__icon spinner" size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-accent)' }} />
       <div className="empty-state__title" style={{ marginTop: '12px' }}>{message}</div>
     </div>
   );

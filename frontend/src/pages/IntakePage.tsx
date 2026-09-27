@@ -83,15 +83,15 @@ export const IntakePage: React.FC = () => {
             border: '2px dashed var(--color-border-strong)',
             borderRadius: '12px',
             cursor: 'pointer',
-            backgroundColor: 'var(--color-bg-secondary)',
+            backgroundColor: 'var(--color-bg-primary)',
             transition: 'border-color var(--transition-fast)',
           }}
         >
-          <UploadCloud size={48} style={{ color: 'var(--color-accent-cyan)', marginBottom: '16px' }} />
+          <UploadCloud size={48} style={{ color: 'var(--color-accent)', marginBottom: '16px' }} />
           <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '8px' }}>
             {selectedFile ? selectedFile.name : 'Select or Drop Network Capture File (.pcap / .pcapng)'}
           </div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-tertiary)' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
             {selectedFile
               ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`
               : 'Maximum intake limit: 100 MB per capture file'}

@@ -67,7 +67,7 @@ export const FindingsPage: React.FC = () => {
       {/* Filter Toolbar */}
       <div className="card" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.85rem', fontWeight: 600 }}>
-          <Filter size={16} style={{ color: 'var(--color-accent-cyan)' }} /> Finding Filters
+          <Filter size={16} style={{ color: 'var(--color-accent)' }} /> Finding Filters
         </div>
 
         <div className="grid-content" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
@@ -197,7 +197,7 @@ export const FindingsPage: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-accent-cyan)' }}>
+                    <span className="mono" style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-accent)' }}>
                       {selectedFinding.rule_id}
                     </span>
                     <SeverityBadge severity={selectedFinding.severity} />
@@ -231,8 +231,8 @@ export const FindingsPage: React.FC = () => {
               </div>
 
               {selectedFinding.remediation_recommendation && (
-                <div style={{ background: 'var(--color-bg-secondary)', padding: '12px', borderRadius: '6px', borderLeft: '3px solid var(--color-accent-cyan)' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-accent-cyan)', marginBottom: '4px' }}>
+                <div style={{ background: 'var(--color-bg-primary)', padding: '12px', borderRadius: '6px', borderLeft: '3px solid var(--color-accent)' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '4px' }}>
                     Recommended Remediation:
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
@@ -262,16 +262,16 @@ export const FindingsPage: React.FC = () => {
                       key={ev.id}
                       style={{
                         padding: '10px 12px',
-                        background: 'var(--color-bg-secondary)',
+                        background: 'var(--color-bg-primary)',
                         borderRadius: '4px',
                         fontSize: '0.8rem',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="mono" style={{ color: 'var(--color-accent-cyan)', fontWeight: 600 }}>
+                        <span className="mono" style={{ color: 'var(--color-accent)', fontWeight: 600 }}>
                           Frame #{ev.frame_number} [{ev.protocol_layer}]
                         </span>
-                        <span style={{ color: 'var(--color-text-tertiary)' }}>{ev.field_name}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{ev.field_name}</span>
                       </div>
                       <div className="mono" style={{ marginTop: '4px', color: 'var(--color-text)' }}>
                         Observed Value: "{ev.observed_value}"
@@ -292,7 +292,7 @@ export const FindingsPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-tertiary)' }}>
+            <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}>
               Select a finding row to view forensic description and attached packet evidence.
             </div>
           )}

@@ -116,7 +116,7 @@ export const InfrastructurePage: React.FC = () => {
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
                   Infrastructure Identity
                 </div>
-                <h3 className="mono" style={{ color: 'var(--color-accent-cyan)', marginTop: '2px' }}>
+                <h3 className="mono" style={{ color: 'var(--color-accent)', marginTop: '2px' }}>
                   {selectedIdentity.ip_address}:{selectedIdentity.port} ({selectedIdentity.protocol})
                 </h3>
               </div>
@@ -159,7 +159,7 @@ export const InfrastructurePage: React.FC = () => {
                 </span>
 
                 {(!selectedIdentity.drift_events || selectedIdentity.drift_events.length === 0) ? (
-                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-tertiary)', marginTop: '6px' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '6px' }}>
                     No baseline cryptographic drift events recorded for this infrastructure identity.
                   </div>
                 ) : (
@@ -169,7 +169,7 @@ export const InfrastructurePage: React.FC = () => {
                         key={d.id}
                         style={{
                           padding: '8px 12px',
-                          background: 'var(--color-bg-secondary)',
+                          background: 'var(--color-bg-primary)',
                           borderLeft: '3px solid var(--color-warning)',
                           borderRadius: '4px',
                           fontSize: '0.8rem',

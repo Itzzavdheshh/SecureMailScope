@@ -92,12 +92,12 @@ export const SessionDetailPage: React.FC = () => {
             </div>
             <div>
               <span style={{ color: 'var(--color-text-secondary)' }}>Hostname:</span>{' '}
-              <strong style={{ color: 'var(--color-accent-cyan)' }}>{session.hostname || 'None observed'}</strong>
+              <strong style={{ color: 'var(--color-accent)' }}>{session.hostname || 'None observed'}</strong>
             </div>
             <div>
               <span style={{ color: 'var(--color-text-secondary)' }}>Protocol:</span>{' '}
               <span style={{ fontWeight: 600 }}>{session.protocol}</span>{' '}
-              {session.is_tls_implicit && <span style={{ color: 'var(--color-accent-indigo)' }}>(Implicit TLS)</span>}
+              {session.is_tls_implicit && <span style={{ color: 'var(--color-info)' }}>(Implicit TLS)</span>}
             </div>
             <div>
               <span style={{ color: 'var(--color-text-secondary)' }}>Traffic Volume:</span>{' '}
@@ -142,7 +142,7 @@ export const SessionDetailPage: React.FC = () => {
                 </div>
               </>
             ) : (
-              <div style={{ color: 'var(--color-text-tertiary)', fontSize: '0.8rem' }}>
+              <div style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
                 No explicit STARTTLS command frames were observed for this session.
               </div>
             )}
@@ -153,7 +153,7 @@ export const SessionDetailPage: React.FC = () => {
       {/* TLS Handshake Inspection */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-          <Lock size={20} style={{ color: 'var(--color-accent-cyan)' }} />
+          <Lock size={20} style={{ color: 'var(--color-accent)' }} />
           <h3>Negotiated TLS Security Parameters</h3>
         </div>
 
@@ -161,7 +161,7 @@ export const SessionDetailPage: React.FC = () => {
           <div className="grid-content-2" style={{ gap: '16px', fontSize: '0.875rem' }}>
             <div>
               <span style={{ color: 'var(--color-text-secondary)' }}>Negotiated TLS Version:</span><br />
-              <span className="mono" style={{ fontSize: '1rem', color: 'var(--color-accent-cyan)', fontWeight: 600 }}>
+              <span className="mono" style={{ fontSize: '1rem', color: 'var(--color-accent)', fontWeight: 600 }}>
                 {tls.negotiated_tls_version || 'Unencrypted / Plaintext'}
               </span>
             </div>
@@ -204,7 +204,7 @@ export const SessionDetailPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div style={{ color: 'var(--color-text-tertiary)', padding: '16px 0' }}>
+          <div style={{ color: 'var(--color-text-muted)', padding: '16px 0' }}>
             No TLS handshake layer was observed for this unencrypted plaintext session.
           </div>
         )}
@@ -213,12 +213,12 @@ export const SessionDetailPage: React.FC = () => {
       {/* X.509 Certificates Inspection */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-          <FileCheck size={20} style={{ color: 'var(--color-accent-indigo)' }} />
+          <FileCheck size={20} style={{ color: 'var(--color-info)' }} />
           <h3>X.509 Certificate Chain ({certs.length})</h3>
         </div>
 
         {certs.length === 0 ? (
-          <div style={{ color: 'var(--color-text-tertiary)' }}>No X.509 certificates observed for this session.</div>
+          <div style={{ color: 'var(--color-text-muted)' }}>No X.509 certificates observed for this session.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {certs.map((c, i) => (
@@ -226,13 +226,13 @@ export const SessionDetailPage: React.FC = () => {
                 key={c.id}
                 style={{
                   padding: '16px',
-                  background: 'var(--color-bg-secondary)',
+                  background: 'var(--color-bg-primary)',
                   border: '1px solid var(--color-border)',
                   borderRadius: '6px',
                   fontSize: '0.85rem',
                 }}
               >
-                <div style={{ fontWeight: 600, color: 'var(--color-accent-cyan)', marginBottom: '8px' }}>
+                <div style={{ fontWeight: 600, color: 'var(--color-accent)', marginBottom: '8px' }}>
                   Certificate #{i + 1} {c.is_self_signed ? '(Self-Signed)' : ''} {c.is_ca ? '(CA)' : ''}
                 </div>
                 <div className="grid-content-2" style={{ gap: '8px' }}>
@@ -277,7 +277,7 @@ export const SessionDetailPage: React.FC = () => {
         </div>
 
         {findings.length === 0 ? (
-          <div style={{ color: 'var(--color-text-tertiary)' }}>
+          <div style={{ color: 'var(--color-text-muted)' }}>
             No security rule violations were triggered for this session.
           </div>
         ) : (
@@ -308,12 +308,12 @@ export const SessionDetailPage: React.FC = () => {
                 </p>
 
                 {f.evidence && f.evidence.length > 0 && (
-                  <div style={{ marginTop: '12px', background: 'var(--color-bg-secondary)', padding: '8px 12px', borderRadius: '4px' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' }}>
+                  <div style={{ marginTop: '12px', background: 'var(--color-bg-primary)', padding: '8px 12px', borderRadius: '4px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
                       Evidence Lineage Snippet:
                     </div>
                     {f.evidence.map((ev) => (
-                      <div key={ev.id} className="mono" style={{ fontSize: '0.8rem', marginTop: '4px', color: 'var(--color-accent-cyan)' }}>
+                      <div key={ev.id} className="mono" style={{ fontSize: '0.8rem', marginTop: '4px', color: 'var(--color-accent)' }}>
                         Frame #{ev.frame_number} [{ev.protocol_layer}] {ev.field_name} = "{ev.observed_value}"
                       </div>
                     ))}

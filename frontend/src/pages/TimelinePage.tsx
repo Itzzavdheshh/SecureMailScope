@@ -90,13 +90,13 @@ export const TimelinePage: React.FC = () => {
                   width: '40px',
                   height: '40px',
                   borderRadius: '50%',
-                  background: 'var(--color-bg-secondary)',
+                  background: 'var(--color-bg-primary)',
                   border: `2px solid ${
                     ev.severity === 'CRITICAL' || ev.severity === 'HIGH'
                       ? 'var(--color-high)'
                       : ev.severity === 'MEDIUM'
                       ? 'var(--color-warning)'
-                      : 'var(--color-accent-cyan)'
+                      : 'var(--color-accent)'
                   }`,
                   display: 'flex',
                   alignItems: 'center',
@@ -110,7 +110,7 @@ export const TimelinePage: React.FC = () => {
                     color:
                       ev.severity === 'CRITICAL' || ev.severity === 'HIGH'
                         ? 'var(--color-high)'
-                        : 'var(--color-accent-cyan)',
+                        : 'var(--color-accent)',
                   }}
                 />
               </div>
@@ -127,7 +127,7 @@ export const TimelinePage: React.FC = () => {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="mono" style={{ fontWeight: 700, color: 'var(--color-accent-cyan)' }}>
+                    <span className="mono" style={{ fontWeight: 700, color: 'var(--color-accent)' }}>
                       {ev.event_type}
                     </span>
                     {ev.frame_number !== null && ev.frame_number !== undefined && (
@@ -138,7 +138,7 @@ export const TimelinePage: React.FC = () => {
                     <SeverityBadge severity={ev.severity} />
                   </div>
 
-                  <div className="mono" style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>
+                  <div className="mono" style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                     {ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : 'N/A'}
                   </div>
                 </div>

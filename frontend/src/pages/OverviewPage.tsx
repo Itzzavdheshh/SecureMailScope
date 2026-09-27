@@ -113,7 +113,7 @@ export const OverviewPage: React.FC = () => {
               {riskData?.overall_risk_score !== undefined
                 ? riskData.overall_risk_score.toFixed(1)
                 : 'INSUFFICIENT DATA'}
-              <span style={{ fontSize: '1rem', color: 'var(--color-text-tertiary)' }}> / 100</span>
+              <span style={{ fontSize: '1rem', color: 'var(--color-text-muted)' }}> / 100</span>
             </div>
           </div>
         </div>
@@ -126,7 +126,7 @@ export const OverviewPage: React.FC = () => {
           value={riskData?.total_sessions ?? 0}
           subtext={`${riskData?.high_risk_session_count ?? 0} high-risk`}
           icon={<Layers size={24} />}
-          accentColor="var(--color-accent-cyan)"
+          accentColor="var(--color-accent)"
         />
         <StatCard
           label="Rule Findings"
@@ -147,7 +147,7 @@ export const OverviewPage: React.FC = () => {
           value={activeCapture?.total_packets.toLocaleString() ?? 0}
           subtext={`${((activeCapture?.file_size_bytes ?? 0) / 1024).toFixed(0)} KB`}
           icon={<FileCheck size={24} />}
-          accentColor="var(--color-accent-indigo)"
+          accentColor="var(--color-info)"
         />
       </div>
 
@@ -169,7 +169,7 @@ export const OverviewPage: React.FC = () => {
                 HIGH: 'var(--color-high)',
                 MEDIUM: 'var(--color-warning)',
                 LOW: 'var(--color-success)',
-                INFO: 'var(--color-accent-cyan)',
+                INFO: 'var(--color-accent)',
               };
 
               return (
@@ -178,7 +178,7 @@ export const OverviewPage: React.FC = () => {
                     <span style={{ fontWeight: 600, color: colorMap[sev] }}>{sev}</span>
                     <span className="mono">{count} ({pct}%)</span>
                   </div>
-                  <div style={{ height: '6px', background: 'var(--color-bg-secondary)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ height: '6px', background: 'var(--color-bg-primary)', borderRadius: '3px', overflow: 'hidden' }}>
                     <div
                       style={{
                         width: `${pct}%`,
@@ -245,7 +245,7 @@ export const OverviewPage: React.FC = () => {
         </div>
 
         {recentFindings.length === 0 ? (
-          <div style={{ color: 'var(--color-text-tertiary)', fontSize: '0.875rem', padding: '16px 0' }}>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '16px 0' }}>
             No security findings observed for this capture.
           </div>
         ) : (
@@ -269,7 +269,7 @@ export const OverviewPage: React.FC = () => {
                   <td style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{f.category}</td>
                   <td>
                     <strong>{f.title}</strong>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                       {f.description.substring(0, 90)}...
                     </div>
                   </td>

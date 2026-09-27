@@ -41,7 +41,7 @@ export const ReportsPage: React.FC = () => {
           </div>
           <div>
             <span style={{ color: 'var(--color-text-secondary)' }}>Overall Posture Score:</span><br />
-            <span className="mono" style={{ fontWeight: 700, color: 'var(--color-accent-cyan)' }}>
+            <span className="mono" style={{ fontWeight: 700, color: 'var(--color-accent)' }}>
               {activeJob.overall_risk_score !== null && activeJob.overall_risk_score !== undefined
                 ? activeJob.overall_risk_score.toFixed(1)
                 : 'N/A'}{' '}
@@ -62,7 +62,7 @@ export const ReportsPage: React.FC = () => {
         {/* JSON Card */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-cyan)', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent)', marginBottom: '8px' }}>
               <FileCode size={24} />
               <h3 style={{ margin: 0 }}>JSON Data Graph</h3>
             </div>
@@ -79,7 +79,7 @@ export const ReportsPage: React.FC = () => {
         {/* HTML Card */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-indigo)', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-info)', marginBottom: '8px' }}>
               <FileSpreadsheet size={24} />
               <h3 style={{ margin: 0 }}>Dark HTML Report</h3>
             </div>

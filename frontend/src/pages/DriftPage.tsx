@@ -144,7 +144,7 @@ export const DriftPage: React.FC = () => {
                 <div
                   style={{
                     padding: '12px',
-                    background: 'var(--color-bg-secondary)',
+                    background: 'var(--color-bg-primary)',
                     border: '1px solid var(--color-border)',
                     borderRadius: '6px',
                   }}
@@ -161,7 +161,7 @@ export const DriftPage: React.FC = () => {
                 <div
                   style={{
                     padding: '12px',
-                    background: 'var(--color-bg-secondary)',
+                    background: 'var(--color-bg-primary)',
                     border: '1px solid var(--color-high)',
                     borderRadius: '6px',
                   }}
