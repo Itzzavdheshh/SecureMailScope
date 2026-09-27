@@ -1,9 +1,10 @@
 """
-Pipeline Orchestrator for Phase 3 & Phase 4.
+Pipeline Orchestrator for Phase 3, Phase 4, & Phase 5.
 Executes PCAP frame streaming, TCP flow grouping, stream reassembly,
 email protocol detection (SMTP/IMAP/POP3), STARTTLS negotiation tracking,
 TLS record layer parsing, ClientHello/ServerHello parameter extraction,
-JA3/JA3S fingerprinting, X.509 certificate parsing, and DB persistence.
+JA3/JA3S fingerprinting, X.509 certificate parsing, rule engine evaluation,
+transparent risk score calculation, and DB persistence.
 """
 
 import json
@@ -21,6 +22,8 @@ from app.models import (
     TlsHandshake,
     Certificate,
     CertificateChain,
+    Finding,
+    Evidence,
     JobStatus,
     StarttlsStatus,
 )
@@ -41,6 +44,13 @@ from app.analyzers.tls_parser import (
 )
 from app.analyzers.cert_analyzer import analyze_certificate_chain
 from app.analyzers.starttls_state_machine import evaluate_starttls_state
+from app.rules import (
+    load_rules_from_directory,
+    load_risk_weights_config,
+    evaluate_rules_for_session,
+    calculate_session_risk_score,
+    calculate_job_risk_score,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -48,7 +58,7 @@ log = structlog.get_logger(__name__)
 async def run_phase3_pipeline(
     capture: Capture, job: AnalysisJob, db: AsyncSession
 ) -> List[EmailSession]:
-    """Alias for complete pipeline execution (Phase 3 + Phase 4)."""
+    """Alias for complete pipeline execution."""
     return await run_pipeline(capture, job, db)
 
 
@@ -56,10 +66,10 @@ async def run_pipeline(
     capture: Capture, job: AnalysisJob, db: AsyncSession
 ) -> List[EmailSession]:
     """
-    Run complete PCAP analysis pipeline through Phase 4.
+    Run complete PCAP analysis pipeline through Phase 5.
 
     Updates AnalysisJob status from PENDING -> RUNNING -> COMPLETED (or FAILED on error).
-    Preserves exact packet frame numbers and timestamps throughout.
+    Evaluates security rules, generates findings/evidence, and computes risk scores.
     """
     pcap_path = Path(capture.file_path)
     if not pcap_path.exists():
@@ -73,12 +83,17 @@ async def run_pipeline(
     await db.commit()
 
     try:
+        # Load Rule Definitions and Risk Weights Configuration
+        active_rules = load_rules_from_directory()
+        risk_config = load_risk_weights_config()
+
         # Step 1: Stream frames from PCAP
         flow_manager = TcpFlowManager()
         for pkt in stream_pcap_frames(pcap_path, capture_id=capture.id):
             flow_manager.process_packet(pkt)
 
         created_sessions: List[EmailSession] = []
+        session_risk_scores: List[float] = []
         session_index = 0
 
         # Step 2: Iterate TCP flows and process each conversation
@@ -170,6 +185,7 @@ async def run_pipeline(
             await db.flush()  # Generate email_sess.id
 
             # Step 8: Persist StarttlsState record
+            st_state: Optional[StarttlsState] = None
             if st_eval.status != StarttlsStatus.NOT_OBSERVED or starttls_res.advertised_frame:
                 st_state = StarttlsState(
                     session_id=email_sess.id,
@@ -184,6 +200,7 @@ async def run_pipeline(
                 db.add(st_state)
 
             # Step 9: Persist TlsHandshake record if TLS observed
+            tls_db: Optional[TlsHandshake] = None
             if tls_observed:
                 offered_versions_str = (
                     json.dumps([parse_client_hello(b"").legacy_version_name] if False else [c for c in [client_hello.legacy_version_name] + [f"0x{v:04x}" for v in client_hello.supported_versions]])
@@ -212,12 +229,14 @@ async def run_pipeline(
                 db.add(tls_db)
 
             # Step 10: Persist Certificate and CertificateChain records if present
+            cert_db: Optional[Certificate] = None
+            chain_db: Optional[CertificateChain] = None
             if cert_msg and cert_msg.der_certificates:
                 cap_ts = flow.start_time if flow.start_time > 0 else flow.end_time
                 chain_res = analyze_certificate_chain(cert_msg.der_certificates, capture_timestamp=cap_ts)
 
                 for cert_idx, parsed_cert in enumerate(chain_res.parsed_certificates):
-                    cert_db = Certificate(
+                    c_rec = Certificate(
                         session_id=email_sess.id,
                         certificate_index=cert_idx,
                         is_server_cert=(cert_idx == 0),
@@ -237,7 +256,9 @@ async def run_pipeline(
                         san_domains=parsed_cert.san_domains_str,
                         raw_der_bytes=parsed_cert.raw_der_bytes,
                     )
-                    db.add(cert_db)
+                    db.add(c_rec)
+                    if cert_idx == 0:
+                        cert_db = c_rec
 
                 chain_db = CertificateChain(
                     session_id=email_sess.id,
@@ -249,7 +270,33 @@ async def run_pipeline(
                 )
                 db.add(chain_db)
 
+            # Step 11: Evaluate Security Rules & Calculate Risk Score
+            findings, evidence_recs = evaluate_rules_for_session(
+                session=email_sess,
+                job_id=job.id,
+                capture_id=capture.id,
+                rules=active_rules,
+                tls=tls_db,
+                cert=cert_db,
+                chain=chain_db,
+                stls=st_state,
+            )
+
+            for f in findings:
+                db.add(f)
+            for ev in evidence_recs:
+                db.add(ev)
+
+            # Compute transparent Session Risk Score
+            sess_score, _ = calculate_session_risk_score(findings, risk_config)
+            email_sess.risk_score = sess_score
+            session_risk_scores.append(sess_score)
+
             created_sessions.append(email_sess)
+
+        # Step 12: Calculate Aggregate AnalysisJob Risk Score
+        job_risk = calculate_job_risk_score(session_risk_scores)
+        job.overall_risk_score = job_risk
 
         # Update AnalysisJob completed state
         job.status = JobStatus.COMPLETED
@@ -262,6 +309,7 @@ async def run_pipeline(
             capture_id=capture.id,
             job_id=job.id,
             total_sessions=len(created_sessions),
+            job_risk_score=job_risk,
         )
 
         return created_sessions
