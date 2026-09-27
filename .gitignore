@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.venv
+venv/
+ENV/
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Node / React
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+.eslintcache
+
+# PCAP uploads and evidence exports
+backend/uploads/*
+!backend/uploads/.gitkeep
+pcaps/*
+!pcaps/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Root temporary uploads
+uploads/
