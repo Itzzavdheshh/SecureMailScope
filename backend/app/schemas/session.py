@@ -61,3 +61,5 @@ class EmailSessionRead(BaseModel):
     banner: Optional[str] = None
     hostname: Optional[str] = None
     risk_score: Optional[float] = None
+    tls_handshake: Optional[TlsHandshakeRead] = None
+    starttls_details: Optional[StarttlsStateRead] = None
