@@ -1,0 +1,154 @@
+# SecureMailScope — STARTTLS Rules
+# Version: 1.0.0
+# Last updated: 2026-09-27
+# Authority: RFC 3207 (SMTP STARTTLS), RFC 2595 (IMAP STARTTLS), RFC 2595 (POP3 STARTTLS)
+#
+# STARTTLS state model:
+#   NOT_OBSERVED → ADVERTISED → ATTEMPTED → ACCEPTED → TLS_FOLLOWED
+#   Any deviation from the full sequence is evaluated below.
+
+version: "1.0.0"
+schema: "securemailscope/rules/starttls/v1"
+
+rules:
+
+  - id: STLS-001
+    title: "STARTTLS Advertised but Not Attempted by Client"
+    severity: HIGH
+    description: >
+      The server advertised STARTTLS support in its capability list (EHLO response),
+      but the client did not attempt to initiate STARTTLS before sending credentials
+      or message data. The connection proceeded in plaintext.
+    rationale: >
+      If a client connects to a server that advertises STARTTLS but does not
+      upgrade the connection, credentials and message data are transmitted in
+      cleartext. This may indicate a downgrade attack or misconfigured client.
+    remediation: >
+      Ensure mail clients are configured to require STARTTLS (not merely offer it).
+      Consider server-side enforcement of STARTTLS (e.g., SMTP REQUIRETLS).
+    references:
+      - "RFC 3207: SMTP Service Extension for Secure SMTP over Transport Layer Security"
+      - "RFC 8689: SMTP Require TLS Option"
+    detection:
+      field: starttls_state
+      condition: equals
+      value: "ADVERTISED"
+    evidence_requirements:
+      requires:
+        - starttls_advertised_frame
+        - no_starttls_command_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: STLS-002
+    title: "STARTTLS Attempted but Rejected by Server"
+    severity: CRITICAL
+    description: >
+      The client sent a STARTTLS command but the server rejected it (responded with
+      an error such as 454 or 503). The connection may have continued in plaintext.
+    rationale: >
+      A server rejecting STARTTLS after advertising it is anomalous and dangerous.
+      This pattern is consistent with STARTTLS stripping attacks (removing the
+      STARTTLS capability advertisement to force plaintext communication).
+    remediation: >
+      Investigate why the server rejected STARTTLS. Verify server configuration.
+      Consider this pattern as a potential attack indicator requiring further investigation.
+    references:
+      - "RFC 3207 Section 4"
+      - "Durumeric et al.: STARTTLS Command Injection (USENIX Security 2015)"
+    detection:
+      field: starttls_state
+      condition: equals
+      value: "FAILED"
+    evidence_requirements:
+      requires:
+        - starttls_command_frame
+        - starttls_rejection_frame
+        - starttls_rejection_code
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: STLS-003
+    title: "STARTTLS Accepted but TLS Not Followed"
+    severity: CRITICAL
+    description: >
+      The server accepted the STARTTLS command (responded with 220) but TLS
+      handshake records were not observed following the acceptance. The connection
+      may have continued in plaintext despite the server indicating readiness.
+    rationale: >
+      This is the most suspicious STARTTLS pattern. A server accepting STARTTLS
+      and then continuing in plaintext is consistent with STARTTLS injection attacks
+      or serious server implementation bugs.
+    remediation: >
+      Investigate the server's STARTTLS implementation. Verify that TLS actually
+      follows STARTTLS acceptance in all code paths. Consider this a high-priority
+      security incident to investigate.
+    references:
+      - "RFC 3207 Section 4"
+      - "STARTTLS injection attacks"
+    detection:
+      field: starttls_state
+      condition: equals
+      value: "ACCEPTED_NO_TLS"
+    evidence_requirements:
+      requires:
+        - starttls_accepted_frame
+        - next_payload_frame
+        - next_payload_is_plaintext
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: STLS-004
+    title: "No STARTTLS Advertised on Plaintext Port"
+    severity: MEDIUM
+    description: >
+      An SMTP, IMAP, or POP3 connection was observed on a plaintext port (25, 110, 143)
+      where the server did not advertise STARTTLS capability. All communication
+      on this session is in cleartext.
+    rationale: >
+      Modern mail servers should advertise STARTTLS on all plaintext ports to
+      enable opportunistic encryption. Absence of STARTTLS advertisement means
+      the connection cannot be upgraded to TLS.
+    remediation: >
+      Configure the mail server to advertise and support STARTTLS on all
+      plaintext ports. Prefer implicit TLS ports (465, 993, 995) for enforced encryption.
+    references:
+      - "RFC 3207"
+      - "RFC 8314: Cleartext Considered Obsolete"
+    detection:
+      field: starttls_state
+      condition: equals
+      value: "NOT_OBSERVED"
+    additional_condition:
+      field: uses_implicit_tls
+      condition: equals
+      value: false
+    evidence_requirements:
+      requires:
+        - server_capability_response_frame
+        - session_port
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: STLS-005
+    title: "Suspicious Post-STARTTLS Behavior"
+    severity: HIGH
+    description: >
+      After a STARTTLS sequence, the payload behavior does not match expected
+      TLS record patterns. The connection may have transitioned back to plaintext
+      or exhibited anomalous protocol behavior after the TLS initiation sequence.
+    rationale: >
+      This rule captures residual anomalies in STARTTLS handling not covered by
+      STLS-002 or STLS-003. Includes scenarios like protocol confusion or
+      unexpected cleartext after handshake initiation.
+    remediation: >
+      Perform detailed packet analysis of the specific session. Compare behavior
+      against sessions with normal STARTTLS progression.
+    references:
+      - "RFC 3207"
+    detection:
+      field: post_starttls_anomaly
+      condition: equals
+      value: true
+    evidence_requirements:
+      requires:
+        - starttls_accepted_frame
+        - post_starttls_payload_frame
+        - anomaly_description
+    confidence_when_missing: INSUFFICIENT_EVIDENCE

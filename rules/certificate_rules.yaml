@@ -1,0 +1,241 @@
+# SecureMailScope — X.509 Certificate Rules
+# Version: 1.0.0
+# Last updated: 2026-09-27
+# Authority: NIST SP 800-57, RFC 5280, CA/Browser Forum Baseline Requirements
+#
+# IMPORTANT: Certificate validity is evaluated relative to the CAPTURE TIMESTAMP,
+# not the current date. This is a forensic analysis of historical traffic.
+
+version: "1.0.0"
+schema: "securemailscope/rules/certificate/v1"
+
+rules:
+
+  - id: CERT-001
+    title: "Certificate Expired at Capture Time"
+    severity: HIGH
+    description: >
+      The server's X.509 certificate had passed its notAfter date at the time
+      the traffic was captured. The certificate was expired during the observed session.
+    rationale: >
+      An expired certificate means clients cannot validate the server's identity
+      through the normal certificate validity window. This represents a configuration
+      failure that may indicate neglected infrastructure.
+    remediation: >
+      Renew the certificate. Implement certificate expiry monitoring to alert
+      30, 14, and 7 days before expiry.
+    references:
+      - "RFC 5280 Section 4.1.2.5"
+      - "CA/Browser Forum Baseline Requirements Section 6.3.2"
+    detection:
+      field: valid_at_capture
+      condition: equals
+      value: false
+    evidence_requirements:
+      requires:
+        - cert_not_after
+        - capture_timestamp
+        - certificate_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+    confidence_note: >
+      This rule fires only when both the certificate and capture timestamp
+      are available. If either is missing, confidence = INSUFFICIENT_EVIDENCE.
+
+  - id: CERT-002
+    title: "Certificate Not Yet Valid at Capture Time"
+    severity: MEDIUM
+    description: >
+      The server's X.509 certificate had a notBefore date in the future relative
+      to the capture timestamp. The certificate was not yet valid when the session occurred.
+    rationale: >
+      A not-yet-valid certificate suggests certificate misconfiguration or
+      clock skew. Clients may reject such certificates.
+    remediation: >
+      Verify server system clock synchronization. Ensure certificates are
+      installed after their notBefore date.
+    references:
+      - "RFC 5280 Section 4.1.2.5"
+    detection:
+      field: not_yet_valid_at_capture
+      condition: equals
+      value: true
+    evidence_requirements:
+      requires:
+        - cert_not_before
+        - capture_timestamp
+        - certificate_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CERT-003
+    title: "Weak RSA Public Key — Less Than 2048 Bits"
+    severity: HIGH
+    description: >
+      The server certificate uses an RSA public key smaller than 2048 bits.
+      Keys of this size are considered cryptographically weak by current standards.
+    rationale: >
+      NIST SP 800-57 considers RSA keys shorter than 2048 bits inadequate for
+      protection beyond 2010. The CA/Browser Forum Baseline Requirements have
+      required 2048-bit minimum RSA since 2014.
+    remediation: >
+      Replace the certificate with one using RSA 2048 or larger, or migrate
+      to ECDSA P-256 or P-384 for stronger security with smaller key sizes.
+    references:
+      - "NIST SP 800-57 Part 1 Rev 5 Table 2"
+      - "CA/Browser Forum Baseline Requirements Section 6.1.5"
+    detection:
+      field: public_key_size
+      condition: less_than
+      value: 2048
+    additional_condition:
+      field: public_key_algorithm
+      condition: equals
+      value: "RSA"
+    evidence_requirements:
+      requires:
+        - public_key_algorithm
+        - public_key_size
+        - certificate_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CERT-004
+    title: "Weak Signature Algorithm — SHA-1 or MD5"
+    severity: MEDIUM
+    description: >
+      The server certificate is signed using a weak cryptographic hash algorithm
+      (SHA-1, MD5, or MD2). These algorithms have known collision vulnerabilities.
+    rationale: >
+      SHA-1 collisions were practically demonstrated (SHAttered, 2017). MD5
+      collisions have been known since 2004. The CA/Browser Forum prohibited
+      SHA-1 certificates from issuance after January 2016.
+    remediation: >
+      Replace the certificate with one signed using SHA-256 or stronger.
+    references:
+      - "CA/Browser Forum Baseline Requirements Section 7.1.3"
+      - "NIST SP 800-131A Rev 2"
+    detection:
+      field: signature_algorithm_oid
+      condition: in
+      value:
+        - "1.2.840.113549.1.1.4"    # md5WithRSAEncryption
+        - "1.2.840.113549.1.1.5"    # sha1WithRSAEncryption
+        - "1.2.840.10040.4.3"       # dsa-with-sha1
+        - "1.2.840.10045.4.1"       # ecdsa-with-SHA1
+        - "1.2.840.113549.1.1.2"    # md2WithRSAEncryption
+    evidence_requirements:
+      requires:
+        - signature_algorithm_oid
+        - certificate_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CERT-005
+    title: "Self-Signed Certificate"
+    severity: MEDIUM
+    description: >
+      The server presented a self-signed certificate (issuer equals subject,
+      signed by its own private key). Self-signed certificates cannot be validated
+      by standard certificate chain verification.
+    rationale: >
+      Self-signed certificates provide no third-party identity assurance.
+      Email servers in production should use certificates issued by a trusted CA.
+      A sudden appearance of self-signed certificates may indicate certificate
+      rotation or misconfiguration.
+    remediation: >
+      Replace with a certificate issued by a trusted CA. For internal
+      infrastructure, use an internal CA with proper chain distribution.
+    references:
+      - "RFC 5280 Section 6"
+      - "CA/Browser Forum Baseline Requirements"
+    detection:
+      field: self_signed
+      condition: equals
+      value: true
+    evidence_requirements:
+      requires:
+        - subject_dn
+        - issuer_dn
+        - certificate_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CERT-006
+    title: "Missing Subject Alternative Name (SAN)"
+    severity: LOW
+    description: >
+      The server certificate does not contain a Subject Alternative Name (SAN)
+      extension with a DNS name. Modern clients rely on SAN for hostname validation;
+      the Common Name field alone is deprecated for this purpose.
+    rationale: >
+      RFC 6125 and the CA/Browser Forum Baseline Requirements (Section 7.1.4.2.1)
+      require SAN for publicly trusted certificates. Many modern clients reject
+      certificates without SAN.
+    remediation: >
+      Ensure the certificate includes a SAN extension with the server's DNS name(s).
+    references:
+      - "RFC 6125: Representation and Verification of Domain-Based Application Service Identity"
+      - "CA/Browser Forum Baseline Requirements Section 7.1.4.2.1"
+    detection:
+      field: has_san_dns
+      condition: equals
+      value: false
+    evidence_requirements:
+      requires:
+        - certificate_extensions
+        - certificate_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CERT-007
+    title: "Incomplete Certificate Chain — Intermediate Certificate Missing"
+    severity: MEDIUM
+    description: >
+      The server did not present intermediate CA certificates in the TLS handshake.
+      Clients cannot complete chain validation without intermediate certificates,
+      though they may fetch them via AIA if configured to do so.
+    rationale: >
+      Best practice requires servers to send the complete certificate chain
+      (end-entity + all intermediate CAs, up to but not including the root).
+      Missing intermediates cause validation failures in strict clients.
+    remediation: >
+      Configure the server to send the complete certificate chain including
+      all intermediate CA certificates.
+    references:
+      - "RFC 5246 Section 7.4.2 (certificate_list)"
+      - "CA/Browser Forum Baseline Requirements Section 4.9.10"
+    detection:
+      field: chain_complete
+      condition: equals
+      value: false
+    evidence_requirements:
+      requires:
+        - chain_certificate_count
+        - certificate_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+    confidence_note: >
+      Chain completeness can only be evaluated when the full TLS Certificate
+      message is captured. If only the end-entity cert is visible, confidence
+      is INFERRED.
+
+  - id: CERT-008
+    title: "Wildcard Certificate Scope Mismatch"
+    severity: LOW
+    description: >
+      The server certificate uses a wildcard SAN (e.g., *.example.com) but
+      was presented on a subdomain that does not match the wildcard pattern, or
+      the wildcard spans multiple labels.
+    rationale: >
+      Wildcard certificates are scoped to a single label depth by RFC 6125.
+      A wildcard *.example.com covers mail.example.com but not a.b.example.com.
+      Mismatches may cause client rejection.
+    remediation: >
+      Ensure the wildcard pattern correctly covers the server's hostname, or
+      use a SAN certificate with explicit domain entries.
+    references:
+      - "RFC 6125 Section 6.4"
+    detection:
+      field: wildcard_scope_mismatch
+      condition: equals
+      value: true
+    evidence_requirements:
+      requires:
+        - san_entries
+        - server_hostname
+        - certificate_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
