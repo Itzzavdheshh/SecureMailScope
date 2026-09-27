@@ -11,15 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.models import AnalysisJob, JobStatus
+from app.models import AnalysisJob, Capture, JobStatus
 from app.schemas import AnalysisJobRead
+from app.analyzers.pipeline import run_phase3_pipeline
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 class JobStartResponse(BaseModel):
     job: AnalysisJobRead
-    message: str = "Analysis job status set to RUNNING. Analysis pipeline will run in Phase 3."
+    message: str = "Phase 3 TCP flow reconstruction and session identification completed successfully."
 
 
 @router.get(
@@ -50,8 +51,7 @@ async def get_job(
     response_model=JobStartResponse,
     summary="Start/Queue analysis job",
     description=(
-        "Phase 2 Stub: Transitions job status to RUNNING. "
-        "Actual packet flow reconstruction and rule analysis will be executed in Phase 3."
+        "Executes Phase 3 TCP flow reconstruction, stream reassembly, and email session identification."
     ),
 )
 async def start_job(
@@ -68,12 +68,21 @@ async def start_job(
             detail=f"Analysis job with ID '{job_id}' not found.",
         )
 
-    if job.status == JobStatus.PENDING:
-        job.status = JobStatus.RUNNING
-        job.started_at = datetime.now(timezone.utc)
-        await db.commit()
-        await db.refresh(job)
+    # Fetch capture
+    cap_stmt = select(Capture).where(Capture.id == job.capture_id)
+    cap_res = await db.execute(cap_stmt)
+    capture = cap_res.scalar_one_or_none()
+
+    if not capture:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Capture record for job '{job_id}' not found.",
+        )
+
+    # Run Phase 3 Pipeline
+    await run_phase3_pipeline(capture, job, db)
 
     return JobStartResponse(
         job=AnalysisJobRead.model_validate(job),
     )
+
