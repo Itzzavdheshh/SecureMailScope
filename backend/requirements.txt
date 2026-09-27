@@ -1,0 +1,45 @@
+# SecureMailScope — Backend Dependencies
+# Pinned for reproducibility. Python 3.12+
+
+# ─── Web framework ────────────────────────────────────────────────────────────
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+python-multipart==0.0.20        # Required for file upload (PCAP intake)
+aiofiles==24.1.0                 # Async file I/O
+
+# ─── Data validation & serialization ─────────────────────────────────────────
+pydantic==2.11.3
+pydantic-settings==2.9.1
+
+# ─── Database ────────────────────────────────────────────────────────────────
+sqlalchemy==2.0.41
+alembic==1.15.2
+aiosqlite==0.21.0               # Async SQLite driver (dev)
+
+# ─── PCAP parsing ────────────────────────────────────────────────────────────
+dpkt==1.9.8                     # Primary PCAP frame iterator
+scapy==2.7.0                    # Per-packet TLS dissection
+
+# ─── Cryptography / X.509 ────────────────────────────────────────────────────
+cryptography==44.0.3            # X.509 certificate parsing
+
+# ─── Configuration ───────────────────────────────────────────────────────────
+pyyaml==6.0.2                   # Rule YAML loading
+python-dotenv==1.1.0
+
+# ─── AI / ML (anomaly detection) ─────────────────────────────────────────────
+numpy==2.2.5
+scipy==1.15.3
+scikit-learn==1.6.1
+
+# ─── Report generation ───────────────────────────────────────────────────────
+jinja2==3.1.6                   # HTML report templating
+reportlab==4.4.1                # PDF generation (pure Python)
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+pytest==8.3.5
+pytest-asyncio==0.25.3
+httpx==0.28.1                   # Async HTTP client for API tests
+
+# ─── Development / utilities ─────────────────────────────────────────────────
+structlog==24.4.0               # Structured logging
