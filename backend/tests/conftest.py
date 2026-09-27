@@ -17,6 +17,15 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def reset_baseline_store():
+    """Reset in-memory baseline store before every test for strict test isolation."""
+    from app.analyzers.baseline import global_baseline_store
+    global_baseline_store.clear()
+    yield
+    global_baseline_store.clear()
+
+
 @pytest.fixture
 async def client():
     """Async test client for the FastAPI app."""
@@ -26,3 +35,4 @@ async def client():
         base_url="http://test",
     ) as ac:
         yield ac
+

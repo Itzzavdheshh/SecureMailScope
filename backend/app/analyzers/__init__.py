@@ -25,7 +25,22 @@ from app.analyzers.cert_analyzer import (
     X509CertAnalysis,
     CertificateChainAnalysis,
 )
-from app.analyzers.starttls_state_machine import evaluate_starttls_state, StarttlsStateEvaluation
+from app.analyzers.identity import (
+    construct_identity_key,
+    build_cryptographic_profile,
+    CryptographicProfile,
+)
+from app.analyzers.baseline import (
+    InfrastructureBaseline,
+    BaselineStatus,
+    BaselineStore,
+    global_baseline_store,
+)
+from app.analyzers.drift_detector import (
+    compare_profiles_for_drift,
+    DriftDetectionResult,
+)
+from app.analyzers.timeline_builder import build_timeline_events_for_session
 from app.analyzers.pipeline import run_pipeline, run_phase3_pipeline
 
 __all__ = [
@@ -55,6 +70,17 @@ __all__ = [
     "CertificateChainAnalysis",
     "evaluate_starttls_state",
     "StarttlsStateEvaluation",
+    "construct_identity_key",
+    "build_cryptographic_profile",
+    "CryptographicProfile",
+    "InfrastructureBaseline",
+    "BaselineStatus",
+    "BaselineStore",
+    "global_baseline_store",
+    "compare_profiles_for_drift",
+    "DriftDetectionResult",
+    "build_timeline_events_for_session",
     "run_pipeline",
     "run_phase3_pipeline",
 ]
+

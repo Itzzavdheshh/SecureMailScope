@@ -11,6 +11,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
+import uuid
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
@@ -24,9 +26,18 @@ from app.models import (
     CertificateChain,
     Finding,
     Evidence,
+    InfrastructureIdentity,
+    DriftEvent,
+    TimelineEvent,
     JobStatus,
     StarttlsStatus,
 )
+
+from app.analyzers.identity import construct_identity_key, build_cryptographic_profile
+from app.analyzers.baseline import global_baseline_store, BaselineStatus
+from app.analyzers.drift_detector import compare_profiles_for_drift
+from app.analyzers.timeline_builder import build_timeline_events_for_session
+
 
 from app.analyzers.pcap_reader import stream_pcap_frames, PacketRecord
 from app.analyzers.tcp_flow import TcpFlowManager
@@ -292,7 +303,88 @@ async def run_pipeline(
             email_sess.risk_score = sess_score
             session_risk_scores.append(sess_score)
 
+            # Step 12: Phase 6 — Infrastructure Identity, Cryptographic Profile, Baseline, Drift Detection & Timeline
+            current_profile = build_cryptographic_profile(email_sess, tls_db, cert_db, st_state)
+            ident_key = construct_identity_key(
+                server_ip=email_sess.server_ip,
+                server_port=email_sess.server_port,
+                protocol=email_sess.protocol.value if hasattr(email_sess.protocol, "value") else str(email_sess.protocol),
+                hostname=email_sess.hostname,
+                cert_sha256=cert_db.sha256_fingerprint if cert_db else None,
+            )
+
+            # Query or create InfrastructureIdentity
+            stmt = select(InfrastructureIdentity).where(InfrastructureIdentity.ip_address == email_sess.server_ip)
+            res = await db.execute(stmt)
+            infra = res.scalar_one_or_none()
+
+            now_utc = datetime.now(timezone.utc)
+            if infra:
+                infra.last_seen_at = now_utc
+                infra.hostname = email_sess.hostname or infra.hostname
+                infra.current_risk_score = sess_score
+                infra.last_evaluated_job_id = job.id
+            else:
+                infra = InfrastructureIdentity(
+                    id=str(uuid.uuid4()),
+                    ip_address=email_sess.server_ip,
+                    hostname=email_sess.hostname,
+                    first_seen_at=now_utc,
+                    last_seen_at=now_utc,
+                    current_risk_score=sess_score,
+                    last_evaluated_job_id=job.id,
+                )
+                db.add(infra)
+                await db.flush()
+
+            # Baseline lookup & Drift Comparison
+            bl = global_baseline_store.get_baseline(ident_key)
+            session_drift_events: List[DriftEvent] = []
+
+            if bl and bl.status in (BaselineStatus.ESTABLISHED, BaselineStatus.TRUSTED) and bl.profile:
+                drift_res = compare_profiles_for_drift(
+                    current=current_profile,
+                    baseline_profile=bl.profile,
+                    baseline_status=bl.status,
+                    current_risk_score=sess_score,
+                    baseline_risk_score=infra.current_risk_score or 0.0,
+                )
+                if drift_res.is_drift_detected and drift_res.primary_event_type:
+                    drift_db = DriftEvent(
+                        id=str(uuid.uuid4()),
+                        infrastructure_id=infra.id,
+                        capture_id=capture.id,
+                        job_id=job.id,
+                        event_type=drift_res.primary_event_type,
+                        previous_state=json.dumps(drift_res.previous_state),
+                        new_state=json.dumps(drift_res.new_state),
+                        delta_description=drift_res.delta_description,
+                        risk_delta=drift_res.risk_delta,
+                        detected_at=now_utc,
+                    )
+                    db.add(drift_db)
+                    await db.flush()
+                    session_drift_events.append(drift_db)
+
+            # Update Baseline store
+            global_baseline_store.record_profile(ident_key, current_profile, min_established_count=3)
+
+            # Build and persist TimelineEvent records
+            tm_events = build_timeline_events_for_session(
+                job_id=job.id,
+                session=email_sess,
+                tls=tls_db,
+                cert=cert_db,
+                chain=chain_db,
+                stls=st_state,
+                findings=findings,
+                drift_events=session_drift_events,
+            )
+            for te in tm_events:
+                db.add(te)
+
             created_sessions.append(email_sess)
+
 
         # Step 12: Calculate Aggregate AnalysisJob Risk Score
         job_risk = calculate_job_risk_score(session_risk_scores)

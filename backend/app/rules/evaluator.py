@@ -171,13 +171,17 @@ def get_session_attribute(
         frame = tls.server_hello_frame if tls else None
         layer = "X509"
 
-    # STARTTLS & Session Attributes
     elif field_name == "starttls_state":
         val = session.starttls_state.value if isinstance(session.starttls_state, Enum) else str(session.starttls_state)
         if stls and stls.observed_state:
             val = stls.observed_state.value if isinstance(stls.observed_state, Enum) else str(stls.observed_state)
         frame = stls.command_in_frame or stls.response_in_frame or stls.advertised_in_frame if stls else None
         layer = "STARTTLS"
+
+        # If STARTTLS is NOT_OBSERVED and no capability/banner frame was captured, treat as insufficient evidence
+        if val == "NOT_OBSERVED" and frame is None and session.banner is None:
+            val = None
+
 
     elif field_name == "uses_implicit_tls":
         val = session.is_tls_implicit
