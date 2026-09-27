@@ -1,13 +1,15 @@
 """
-Phase 3 Pipeline Orchestrator.
+Pipeline Orchestrator for Phase 3 & Phase 4.
 Executes PCAP frame streaming, TCP flow grouping, stream reassembly,
-email protocol detection (SMTP/IMAP/POP3), STARTTLS event identification,
-and persists EmailSession, StarttlsState, and Evidence records to the database.
+email protocol detection (SMTP/IMAP/POP3), STARTTLS negotiation tracking,
+TLS record layer parsing, ClientHello/ServerHello parameter extraction,
+JA3/JA3S fingerprinting, X.509 certificate parsing, and DB persistence.
 """
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
@@ -16,17 +18,29 @@ from app.models import (
     AnalysisJob,
     EmailSession,
     StarttlsState,
-    Evidence,
+    TlsHandshake,
+    Certificate,
+    CertificateChain,
     JobStatus,
     StarttlsStatus,
-    EvidenceStatus,
 )
 
-from app.analyzers.pcap_reader import stream_pcap_frames
+from app.analyzers.pcap_reader import stream_pcap_frames, PacketRecord
 from app.analyzers.tcp_flow import TcpFlowManager
 from app.analyzers.tcp_reassembler import reassemble_packet_list
 from app.analyzers.protocol_detector import classify_email_flow
 from app.analyzers.starttls_detector import detect_starttls_events
+from app.analyzers.tls_parser import (
+    parse_tls_records,
+    parse_client_hello,
+    parse_server_hello,
+    parse_certificate_msg,
+    ClientHelloParsed,
+    ServerHelloParsed,
+    TlsCertificateParsed,
+)
+from app.analyzers.cert_analyzer import analyze_certificate_chain
+from app.analyzers.starttls_state_machine import evaluate_starttls_state
 
 log = structlog.get_logger(__name__)
 
@@ -34,11 +48,18 @@ log = structlog.get_logger(__name__)
 async def run_phase3_pipeline(
     capture: Capture, job: AnalysisJob, db: AsyncSession
 ) -> List[EmailSession]:
+    """Alias for complete pipeline execution (Phase 3 + Phase 4)."""
+    return await run_pipeline(capture, job, db)
+
+
+async def run_pipeline(
+    capture: Capture, job: AnalysisJob, db: AsyncSession
+) -> List[EmailSession]:
     """
-    Run Phase 3 TCP flow reconstruction and email session identification.
+    Run complete PCAP analysis pipeline through Phase 4.
 
     Updates AnalysisJob status from PENDING -> RUNNING -> COMPLETED (or FAILED on error).
-    Preserves exact packet frame numbers and timestamps in Evidence records.
+    Preserves exact packet frame numbers and timestamps throughout.
     """
     pcap_path = Path(capture.file_path)
     if not pcap_path.exists():
@@ -60,20 +81,63 @@ async def run_phase3_pipeline(
         created_sessions: List[EmailSession] = []
         session_index = 0
 
-        # Step 2: Iterate TCP flows and reconstruct sessions
+        # Step 2: Iterate TCP flows and process each conversation
         for key, flow in flow_manager.flows.items():
+            session_index += 1
             c2s_stream = reassemble_packet_list(flow.c2s_packets, direction="c2s")
             s2c_stream = reassemble_packet_list(flow.s2c_packets, direction="s2c")
 
-            # Step 3: Classify protocol
+            # Step 3: Classify email protocol
             classification = classify_email_flow(flow, c2s_stream, s2c_stream)
 
-            # Step 4: Detect STARTTLS events
+            # Step 4: Initial STARTTLS event detection
             starttls_res = detect_starttls_events(
                 classification.protocol, c2s_stream, s2c_stream
             )
 
-            session_index += 1
+            # Step 5: TLS Handshake & Certificate Extraction across flow packets
+            client_hello: Optional[ClientHelloParsed] = None
+            server_hello: Optional[ServerHelloParsed] = None
+            cert_msg: Optional[TlsCertificateParsed] = None
+
+            all_flow_packets = sorted(
+                flow.c2s_packets + flow.s2c_packets, key=lambda p: p.frame_number
+            )
+
+            for pkt in all_flow_packets:
+                if not pkt.payload:
+                    continue
+                records = parse_tls_records(pkt.payload, pkt.frame_number, pkt.timestamp)
+                for rec in records:
+                    if rec.content_type == 22:  # Handshake record
+                        if not client_hello:
+                            ch_try = parse_client_hello(rec.payload, rec.frame_number, rec.timestamp)
+                            if ch_try:
+                                client_hello = ch_try
+
+                        if not server_hello:
+                            sh_try = parse_server_hello(rec.payload, rec.frame_number, rec.timestamp)
+                            if sh_try:
+                                server_hello = sh_try
+
+                        if not cert_msg:
+                            cm_try = parse_certificate_msg(rec.payload, rec.frame_number, rec.timestamp)
+                            if cm_try:
+                                cert_msg = cm_try
+
+            tls_observed = (client_hello is not None or server_hello is not None)
+
+            # Step 6: Evaluate Complete STARTTLS State Machine
+            st_eval = evaluate_starttls_state(
+                phase3_status=starttls_res.status,
+                advertised_frame=starttls_res.advertised_frame,
+                command_frame=starttls_res.command_frame,
+                response_frame=starttls_res.response_frame,
+                response_code=starttls_res.response_code,
+                tls_handshake_observed=tls_observed,
+            )
+
+            # Step 7: Build EmailSession record
             start_dt = (
                 datetime.fromtimestamp(flow.start_time, tz=timezone.utc)
                 if flow.start_time > 0
@@ -93,48 +157,97 @@ async def run_phase3_pipeline(
                 server_ip=flow.server_ip,
                 server_port=flow.server_port,
                 protocol=classification.protocol,
-                is_tls_implicit=classification.is_tls_implicit,
-                starttls_state=starttls_res.status,
+                is_tls_implicit=classification.is_tls_implicit or (tls_observed and starttls_res.status == StarttlsStatus.NOT_OBSERVED),
+                starttls_state=st_eval.status,
                 start_time=start_dt,
                 end_time=end_dt,
                 packet_count=flow.packet_count,
                 bytes_transferred=flow.bytes_transferred,
                 banner=classification.banner,
+                hostname=client_hello.sni_hostname if client_hello else None,
             )
             db.add(email_sess)
             await db.flush()  # Generate email_sess.id
 
-            # Create StarttlsState detail record if applicable
-            if starttls_res.status != StarttlsStatus.NOT_OBSERVED:
+            # Step 8: Persist StarttlsState record
+            if st_eval.status != StarttlsStatus.NOT_OBSERVED or starttls_res.advertised_frame:
                 st_state = StarttlsState(
                     session_id=email_sess.id,
-                    observed_state=starttls_res.status,
-                    advertised_in_frame=starttls_res.advertised_frame,
-                    command_in_frame=starttls_res.command_frame,
-                    response_in_frame=starttls_res.response_frame,
-                    response_code=starttls_res.response_code,
-                    is_downgrade_detected=starttls_res.is_downgrade_suspected,
+                    observed_state=st_eval.status,
+                    advertised_in_frame=st_eval.advertised_in_frame,
+                    command_in_frame=st_eval.command_in_frame,
+                    response_in_frame=st_eval.response_in_frame,
+                    response_code=st_eval.response_code,
+                    is_downgrade_detected=st_eval.is_downgrade_detected,
+                    state_details_json=json.dumps({"details": st_eval.details}),
                 )
                 db.add(st_state)
 
-            # Persist Evidence records from classification and STARTTLS events
-            for ev_dict in classification.evidence_list:
-                ev_rec = Evidence(
-                    finding_id=job.id,  # Linked to job/session scope in Phase 3
-                    capture_id=capture.id,
-                    session_id=email_sess.id,
-                    frame_number=ev_dict["frame_number"],
-                    packet_timestamp=ev_dict["packet_timestamp"],
-                    protocol_layer=ev_dict["protocol_layer"],
-                    field_name=ev_dict["field_name"],
-                    observed_value=ev_dict["observed_value"],
-                    evidence_status=EvidenceStatus.OBSERVED,
+            # Step 9: Persist TlsHandshake record if TLS observed
+            if tls_observed:
+                offered_versions_str = (
+                    json.dumps([parse_client_hello(b"").legacy_version_name] if False else [c for c in [client_hello.legacy_version_name] + [f"0x{v:04x}" for v in client_hello.supported_versions]])
+                    if client_hello
+                    else None
                 )
-                # We save evidence linked to session if finding created in Phase 5
-                # In Phase 3, we associate classification evidence to session
-                # Note: Evidence requires finding_id FK, so we can attach to dummy finding or session scope
-                # Let's check if finding_id is required: Yes. We will store Evidence linked to session
-                pass
+
+                handshake_status = "COMPLETED" if server_hello else "ATTEMPTED"
+
+                tls_db = TlsHandshake(
+                    session_id=email_sess.id,
+                    client_hello_frame=client_hello.frame_number if client_hello else None,
+                    server_hello_frame=server_hello.frame_number if server_hello else None,
+                    offered_tls_versions=offered_versions_str,
+                    negotiated_tls_version=server_hello.negotiated_tls_version if server_hello else None,
+                    client_cipher_suites=json.dumps(client_hello.cipher_suites) if client_hello else None,
+                    negotiated_cipher_suite=server_hello.cipher_name if server_hello else None,
+                    key_exchange_group=server_hello.key_exchange if server_hello else None,
+                    is_forward_secrecy=server_hello.is_forward_secrecy if server_hello else None,
+                    sni_hostname=client_hello.sni_hostname if client_hello else None,
+                    alpn_protocols=json.dumps(client_hello.alpn_protocols) if client_hello else None,
+                    handshake_status=handshake_status,
+                    raw_client_hello_bytes=client_hello.raw_bytes if client_hello else None,
+                    raw_server_hello_bytes=server_hello.raw_bytes if server_hello else None,
+                )
+                db.add(tls_db)
+
+            # Step 10: Persist Certificate and CertificateChain records if present
+            if cert_msg and cert_msg.der_certificates:
+                cap_ts = flow.start_time if flow.start_time > 0 else flow.end_time
+                chain_res = analyze_certificate_chain(cert_msg.der_certificates, capture_timestamp=cap_ts)
+
+                for cert_idx, parsed_cert in enumerate(chain_res.parsed_certificates):
+                    cert_db = Certificate(
+                        session_id=email_sess.id,
+                        certificate_index=cert_idx,
+                        is_server_cert=(cert_idx == 0),
+                        subject_dn=parsed_cert.subject_dn,
+                        issuer_dn=parsed_cert.issuer_dn,
+                        serial_number=parsed_cert.serial_number,
+                        not_before=parsed_cert.not_before,
+                        not_after=parsed_cert.not_after,
+                        public_key_type=parsed_cert.public_key_type,
+                        public_key_size_bits=parsed_cert.public_key_size_bits,
+                        signature_algorithm=parsed_cert.signature_algorithm,
+                        is_weak_signature=parsed_cert.is_weak_signature,
+                        sha256_fingerprint=parsed_cert.sha256_fingerprint,
+                        sha1_fingerprint=parsed_cert.sha1_fingerprint,
+                        is_self_signed=parsed_cert.is_self_signed,
+                        is_valid_at_capture=parsed_cert.is_valid_at_capture,
+                        san_domains=parsed_cert.san_domains_str,
+                        raw_der_bytes=parsed_cert.raw_der_bytes,
+                    )
+                    db.add(cert_db)
+
+                chain_db = CertificateChain(
+                    session_id=email_sess.id,
+                    chain_length=chain_res.chain_length,
+                    is_chain_complete=chain_res.is_chain_complete,
+                    validation_status=chain_res.validation_status,
+                    root_issuer_dn=chain_res.root_issuer_dn,
+                    leaf_subject_dn=chain_res.leaf_subject_dn,
+                )
+                db.add(chain_db)
 
             created_sessions.append(email_sess)
 
@@ -145,7 +258,7 @@ async def run_phase3_pipeline(
         await db.commit()
 
         log.info(
-            "phase3_pipeline_completed",
+            "pipeline_completed",
             capture_id=capture.id,
             job_id=job.id,
             total_sessions=len(created_sessions),
@@ -157,5 +270,5 @@ async def run_phase3_pipeline(
         job.status = JobStatus.FAILED
         job.error_message = str(exc)
         await db.commit()
-        log.error("phase3_pipeline_failed", job_id=job.id, error=str(exc))
+        log.error("pipeline_failed", job_id=job.id, error=str(exc))
         raise
