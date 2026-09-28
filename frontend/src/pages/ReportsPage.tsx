@@ -4,7 +4,7 @@ import { useWorkspace } from '../context/WorkspaceContext';
 import { reportsApi } from '../api/services';
 import { EmptyState } from '../components/common/StateViews';
 import { DocumentList } from '../components/common/DocumentList';
-import { RiskBandBadge } from '../components/common/Badge';
+import { Badge, RiskBandBadge } from '../components/common/Badge';
 
 export const ReportsPage: React.FC = () => {
   const { activeJob, activeCapture } = useWorkspace();
@@ -20,6 +20,8 @@ export const ReportsPage: React.FC = () => {
       </div>
     );
   }
+
+  const hasSessions = (activeJob.session_count || 0) > 0;
 
   const jsonUrl = reportsApi.getJobReportUrl(activeJob.id, 'json');
   const htmlUrl = reportsApi.getJobReportUrl(activeJob.id, 'html');
@@ -48,9 +50,9 @@ export const ReportsPage: React.FC = () => {
     },
     {
       id: 'doc-pdf',
-      type: 'Official Government Audit Report',
+      type: 'Forensic Analysis Report',
       format: 'PDF' as const,
-      description: 'Printable ReportLab PDF audit document formatted for legal filing and executive disclosures.',
+      description: 'Printable PDF report containing analysis results, findings, evidence references, timeline events, and investigation limitations.',
       onView: () => window.open(pdfUrl, '_blank'),
       onDownload: () => {
         window.location.href = pdfUrl;
@@ -64,7 +66,11 @@ export const ReportsPage: React.FC = () => {
       <div className="card">
         <div className="card-header">
           <span className="card-title">Investigation Context & Report Parameters</span>
-          <RiskBandBadge band={activeJob.risk_band} />
+          {hasSessions ? (
+            <RiskBandBadge band={activeJob.risk_band} />
+          ) : (
+            <Badge variant="neutral">INSUFFICIENT EVIDENCE</Badge>
+          )}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', fontSize: '12px' }}>
