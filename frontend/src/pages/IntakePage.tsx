@@ -60,9 +60,11 @@ export const IntakePage: React.FC = () => {
     <div className="workspace-page-scrollable" style={{ maxWidth: '900px', margin: '0 auto' }}>
       {/* STEP 1: SELECT FILE */}
       <div className="card">
-        <div className="card-header">
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: '8px' }}>
           <span className="card-title">STEP 1 — SELECT NETWORK CAPTURE FILE</span>
-          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>SUPPORTED FORMATS: .PCAP / .PCAPNG</span>
+          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+            SUPPORTED FORMATS: .PCAP · .PCAPNG
+          </span>
         </div>
 
         <input
@@ -94,7 +96,7 @@ export const IntakePage: React.FC = () => {
             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
               {selectedFile
                 ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`
-                : 'Supports libpcap and pcapng formats up to 100 MB'}
+                : 'Supports libpcap and pcapng formats up to 200 MB'}
             </div>
           </div>
           {selectedFile && !uploadResult && (
