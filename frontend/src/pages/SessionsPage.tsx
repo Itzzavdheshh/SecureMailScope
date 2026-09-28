@@ -69,7 +69,7 @@ export const SessionsPage: React.FC = () => {
     },
     {
       key: 'starttls_state',
-      label: 'STARTTLS',
+      label: 'STARTTLS State',
       value: filters.starttls_state || '',
       options: [
         { label: 'NOT OBSERVED', value: 'NOT_OBSERVED' },
