@@ -1,22 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
-import { Activity, Filter, RefreshCw, Layers } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Activity, RefreshCw, ExternalLink } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { evidenceApi, type EvidenceFilterParams } from '../api/services';
 import type { EvidenceRead, PaginatedResponse } from '../types/api';
 import { Pagination } from '../components/common/Pagination';
 import { LoadingState, EmptyState, ErrorState } from '../components/common/StateViews';
+import { FilterToolbar, type FilterOption } from '../components/common/FilterToolbar';
+import { DataTable, type Column } from '../components/common/DataTable';
+import { InspectorPanel } from '../components/common/InspectorPanel';
 
 export const EvidencePage: React.FC = () => {
   const { activeCapture } = useWorkspace();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
   const [data, setData] = useState<PaginatedResponse<EvidenceRead> | null>(null);
   const [page, setPage] = useState(1);
+  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceRead | null>(null);
   const [filters, setFilters] = useState<EvidenceFilterParams>({
     finding_id: searchParams.get('finding_id') || undefined,
     session_id: searchParams.get('session_id') || undefined,
     protocol_layer: searchParams.get('protocol_layer') || undefined,
   });
+  const [searchVal, setSearchVal] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -27,10 +34,13 @@ export const EvidencePage: React.FC = () => {
       const res = await evidenceApi.list({
         capture_id: activeCapture?.id,
         page: currentPage,
-        page_size: 20,
+        page_size: 25,
         ...currentFilters,
       });
       setData(res);
+      if (res.items.length > 0 && !selectedEvidence) {
+        setSelectedEvidence(res.items[0]);
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to fetch forensic packet evidence.');
     } finally {
@@ -49,138 +59,226 @@ export const EvidencePage: React.FC = () => {
     fetchEvidence(1, nextFilters);
   };
 
+  const filterOptions: FilterOption[] = [
+    {
+      key: 'protocol_layer',
+      label: 'Layer',
+      value: filters.protocol_layer || '',
+      options: [
+        { label: 'TCP Layer', value: 'TCP' },
+        { label: 'TLS Handshake', value: 'TLS' },
+        { label: 'SMTP Protocol', value: 'SMTP' },
+        { label: 'IMAP Protocol', value: 'IMAP' },
+        { label: 'POP3 Protocol', value: 'POP3' },
+        { label: 'X.509 Certificate', value: 'X509' },
+      ],
+      onChange: (val) => handleFilterChange('protocol_layer', val),
+    },
+  ];
+
+  const columns: Column<EvidenceRead>[] = [
+    {
+      key: 'frame_number',
+      header: 'FRAME',
+      width: '65px',
+      render: (ev) => (
+        <span className="mono" style={{ fontWeight: 700, color: 'var(--color-blue-700)' }}>
+          #{ev.frame_number}
+        </span>
+      ),
+    },
+    {
+      key: 'protocol_layer',
+      header: 'LAYER',
+      width: '70px',
+      render: (ev) => <span className="mono" style={{ fontSize: '11px' }}>{ev.protocol_layer}</span>,
+    },
+    {
+      key: 'field_name',
+      header: 'FIELD NAME',
+      render: (ev) => <span style={{ fontWeight: 600 }}>{ev.field_name}</span>,
+    },
+  ];
+
+  const filteredItems = (data?.items || []).filter((ev) => {
+    if (!searchVal) return true;
+    const term = searchVal.toLowerCase();
+    return (
+      ev.field_name.toLowerCase().includes(term) ||
+      ev.observed_value.toLowerCase().includes(term) ||
+      String(ev.frame_number).includes(term) ||
+      ev.protocol_layer.toLowerCase().includes(term)
+    );
+  });
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2>Forensic Evidence Explorer</h2>
-          <p>
-            Trace exact packet field observations to security findings: FINDING &rarr; EVIDENCE &rarr; FRAME &rarr; PROTOCOL FIELD.
-          </p>
-        </div>
-        <button onClick={() => fetchEvidence(page, filters)} className="btn btn--ghost">
-          <RefreshCw size={16} /> Refresh
-        </button>
-      </div>
+    <div className="workspace-page">
+      {/* Top Filter Toolbar */}
+      <FilterToolbar
+        searchPlaceholder="Filter frame, layer, field, value..."
+        searchValue={searchVal}
+        onSearchChange={(val) => setSearchVal(val)}
+        filters={filterOptions}
+        onReset={() => {
+          setFilters({});
+          setSearchVal('');
+          fetchEvidence(1, {});
+        }}
+        actionButton={
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ padding: '4px 8px', fontSize: '12px' }}
+            onClick={() => fetchEvidence(page, filters)}
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
+        }
+      />
 
-      {/* Filter Bar */}
-      <div className="card" style={{ padding: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.85rem', fontWeight: 600 }}>
-          <Filter size={16} style={{ color: 'var(--color-accent)' }} /> Evidence Filters
-        </div>
-
-        <div className="grid-content" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-          <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '4px' }}>
-              Protocol Layer
-            </label>
-            <select
-              className="input"
-              value={filters.protocol_layer || ''}
-              onChange={(e) => handleFilterChange('protocol_layer', e.target.value)}
-            >
-              <option value="">All Layers</option>
-              <option value="TCP">TCP Layer</option>
-              <option value="TLS">TLS Handshake</option>
-              <option value="SMTP">SMTP Protocol</option>
-              <option value="IMAP">IMAP Protocol</option>
-              <option value="POP3">POP3 Protocol</option>
-              <option value="X509">X.509 Certificate</option>
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '4px' }}>
-              Field Name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. negotiated_version"
-              className="input"
-              value={filters.field_name || ''}
-              onChange={(e) => handleFilterChange('field_name', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Evidence Items List */}
+      {/* Main 3-Pane Workbench Layout */}
       {isLoading ? (
-        <LoadingState message="Tracing packet evidence items..." />
+        <LoadingState message="Tracing forensic packet evidence lineage..." />
       ) : errorMsg ? (
         <ErrorState message={errorMsg} onRetry={() => fetchEvidence(page, filters)} />
       ) : !data || data.items.length === 0 ? (
         <EmptyState
           title="No Evidence Items Found"
           subtitle="No forensic packet evidence matched the selected filter criteria."
-          icon={<Activity size={40} />}
+          icon={<Activity size={36} />}
         />
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Frame</th>
-                <th>Timestamp</th>
-                <th>Layer</th>
-                <th>Protocol Field</th>
-                <th>Observed Value</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((ev) => (
-                <tr key={ev.id}>
-                  <td className="mono" style={{ fontWeight: 700, color: 'var(--color-accent)' }}>
-                    #{ev.frame_number}
-                  </td>
-                  <td className="mono" style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                    {ev.packet_timestamp ? ev.packet_timestamp.substring(11, 23) : 'N/A'}
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        background: 'var(--color-bg-primary)',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {ev.protocol_layer}
-                    </span>
-                  </td>
-                  <td className="mono" style={{ fontWeight: 600 }}>
-                    {ev.field_name}
-                  </td>
-                  <td className="mono" style={{ color: 'var(--color-text)', maxWidth: '280px', wordBreak: 'break-all' }}>
-                    "{ev.observed_value}"
-                  </td>
-                  <td>
-                    {ev.session_id ? (
-                      <Link
-                        to={`/sessions/${ev.session_id}`}
-                        className="btn btn--ghost"
-                        style={{ padding: '2px 8px', fontSize: '0.75rem' }}
-                      >
-                        <Layers size={14} /> Session
-                      </Link>
-                    ) : (
-                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>-</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="master-detail-container">
+          {/* Pane 1: Evidence Item List (30%) */}
+          <div className="master-pane" style={{ flex: '0 0 320px' }}>
+            <DataTable
+              columns={columns}
+              data={filteredItems}
+              keyExtractor={(ev) => ev.id}
+              selectedKey={selectedEvidence?.id}
+              onRowClick={(ev) => setSelectedEvidence(ev)}
+            />
 
-          <Pagination
-            page={data.page}
-            totalPages={data.total_pages}
-            totalItems={data.total}
-            pageSize={data.page_size}
-            onPageChange={(p) => setPage(p)}
-          />
+            <div style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+              <Pagination
+                page={data.page}
+                totalPages={data.total_pages}
+                totalItems={data.total}
+                pageSize={data.page_size}
+                onPageChange={(p) => setPage(p)}
+              />
+            </div>
+          </div>
+
+          {/* Pane 2: Evidence Record Detail (Flex 1) */}
+          {selectedEvidence ? (
+            <div className="master-pane" style={{ flex: 1, padding: '16px', gap: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>
+                    EVIDENCE RECORD DETAILS
+                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, marginTop: '2px' }}>
+                    Frame #{selectedEvidence.frame_number} · {selectedEvidence.protocol_layer}
+                  </div>
+                </div>
+
+                <div className="badge badge--info" style={{ fontSize: '11px' }}>
+                  {selectedEvidence.protocol_layer} LAYER
+                </div>
+              </div>
+
+              <div className="detail-row">
+                <div className="detail-row__label">Field Identifier</div>
+                <div className="detail-row__value mono" style={{ fontWeight: 700 }}>
+                  {selectedEvidence.field_name}
+                </div>
+              </div>
+
+              <div className="detail-row">
+                <div className="detail-row__label">Observed Value</div>
+                <div className="detail-row__value mono" style={{ color: 'var(--color-blue-700)', wordBreak: 'break-all' }}>
+                  "{selectedEvidence.observed_value}"
+                </div>
+              </div>
+
+              <div className="detail-row">
+                <div className="detail-row__label">Packet Timestamp</div>
+                <div className="detail-row__value mono">
+                  {selectedEvidence.packet_timestamp || 'N/A'}
+                </div>
+              </div>
+
+              {selectedEvidence.raw_hex_snippet && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+                    HEX PAYLOAD SNIPPET
+                  </div>
+                  <pre style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', padding: '10px', background: 'var(--color-surface-inset)', borderRadius: 'var(--radius-sm)' }}>
+                    {selectedEvidence.raw_hex_snippet}
+                  </pre>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="master-pane" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}>
+              Select an evidence item from the left pane to view details.
+            </div>
+          )}
+
+          {/* Pane 3: Linked Packet Frame Inspector (320px) */}
+          {selectedEvidence && (
+            <InspectorPanel
+              title={`FRAME #${selectedEvidence.frame_number}`}
+              subtitle={`Packet Timestamp: ${selectedEvidence.packet_timestamp?.substring(11, 23) || 'N/A'}`}
+              onClose={() => setSelectedEvidence(null)}
+            >
+              <div className="inspector-section">
+                <div className="inspector-section-title">FRAME METADATA</div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Frame Number</div>
+                  <div className="detail-row__value mono" style={{ fontWeight: 700 }}>
+                    #{selectedEvidence.frame_number}
+                  </div>
+                </div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Protocol Layer</div>
+                  <div className="detail-row__value mono">
+                    {selectedEvidence.protocol_layer}
+                  </div>
+                </div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Finding ID</div>
+                  <div className="detail-row__value mono">
+                    {selectedEvidence.finding_id ? `FND-${selectedEvidence.finding_id.substring(0, 8)}` : 'None direct'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 'auto', paddingTop: '12px' }}>
+                {selectedEvidence.session_id ? (
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    style={{ width: '100%', justifyContent: 'center', fontSize: '12px', gap: '6px' }}
+                    onClick={() => navigate(`/sessions/${selectedEvidence.session_id}`)}
+                  >
+                    <ExternalLink size={14} />
+                    <span>Open Parent Mail Session</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn--secondary"
+                    style={{ width: '100%', justifyContent: 'center', fontSize: '12px', opacity: 0.6 }}
+                    disabled
+                  >
+                    No Session Link
+                  </button>
+                )}
+              </div>
+            </InspectorPanel>
+          )}
         </div>
       )}
     </div>

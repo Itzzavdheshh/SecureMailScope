@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, FileCheck, Play, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { UploadCloud, FileCheck, Play, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { capturesApi, jobsApi } from '../api/services';
 import type { CaptureUploadResponse } from '../types/api';
@@ -35,9 +35,9 @@ export const IntakePage: React.FC = () => {
       setActiveCapture(res);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to upload packet capture file.');
-    } finally {
+    } Promise.resolve().finally(() => {
       setIsUploading(false);
-    }
+    });
   };
 
   const handleStartAnalysis = async () => {
@@ -57,13 +57,14 @@ export const IntakePage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <h2>Network Packet Capture Intake</h2>
-        <p>Ingest PCAP or PCAPNG packet capture files for deterministic cryptographic security analysis.</p>
-      </div>
+    <div className="workspace-page-scrollable" style={{ maxWidth: '900px', margin: '0 auto' }}>
+      {/* STEP 1: SELECT FILE */}
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">STEP 1 — SELECT NETWORK CAPTURE FILE</span>
+          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>SUPPORTED FORMATS: .PCAP / .PCAPNG</span>
+        </div>
 
-      <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
         <input
           type="file"
           id="pcap-upload-input"
@@ -76,106 +77,147 @@ export const IntakePage: React.FC = () => {
           htmlFor="pcap-upload-input"
           style={{
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px 20px',
-            border: '2px dashed var(--color-border-strong)',
-            borderRadius: '12px',
+            gap: '16px',
+            padding: '16px 20px',
+            border: '2px dashed var(--color-border)',
+            borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
             backgroundColor: 'var(--color-bg-primary)',
-            transition: 'border-color var(--transition-fast)',
           }}
         >
-          <UploadCloud size={48} style={{ color: 'var(--color-accent)', marginBottom: '16px' }} />
-          <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '8px' }}>
-            {selectedFile ? selectedFile.name : 'Select or Drop Network Capture File (.pcap / .pcapng)'}
+          <UploadCloud size={32} color="var(--color-blue-700)" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
+              {selectedFile ? selectedFile.name : 'Click to select or drop a PCAP file'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+              {selectedFile
+                ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`
+                : 'Supports libpcap and pcapng formats up to 100 MB'}
+            </div>
           </div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-            {selectedFile
-              ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`
-              : 'Maximum intake limit: 100 MB per capture file'}
-          </div>
+          {selectedFile && !uploadResult && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                handleUpload();
+              }}
+              disabled={isUploading}
+              className="btn btn--primary"
+              style={{ fontSize: '12px', gap: '6px' }}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <FileCheck size={14} /> Ingest File
+                </>
+              )}
+            </button>
+          )}
         </label>
-
-        {selectedFile && !uploadResult && (
-          <button
-            onClick={handleUpload}
-            disabled={isUploading}
-            className="btn btn--primary"
-            style={{ marginTop: '24px', padding: '10px 24px' }}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 size={18} className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
-                Ingesting and Validating Capture...
-              </>
-            ) : (
-              <>
-                <FileCheck size={18} /> Ingest Capture File
-              </>
-            )}
-          </button>
-        )}
       </div>
 
       {errorMsg && (
-        <div className="error-banner" style={{ marginTop: '20px' }}>
-          <AlertTriangle size={20} />
+        <div className="error-banner">
+          <AlertTriangle size={18} />
           <div>{errorMsg}</div>
         </div>
       )}
 
+      {/* STEP 2: CAPTURE VALIDATION */}
       {uploadResult && (
-        <div className="card" style={{ marginTop: '24px', borderLeft: '4px solid var(--color-success)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-            <CheckCircle size={24} style={{ color: 'var(--color-success)' }} />
-            <div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>Capture Ingested & Validated</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>{uploadResult.message}</div>
-            </div>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">STEP 2 — CAPTURE VALIDATION METADATA</span>
+            <span className="badge badge--secure" style={{ fontSize: '10px' }}>
+              VALIDATED
+            </span>
           </div>
 
-          <div className="grid-content-2" style={{ gap: '12px', fontSize: '0.875rem' }}>
-            <div>
-              <span style={{ color: 'var(--color-text-secondary)' }}>Filename:</span>{' '}
-              <strong style={{ color: 'var(--color-text)' }}>{uploadResult.filename}</strong>
-            </div>
-            <div>
-              <span style={{ color: 'var(--color-text-secondary)' }}>File Size:</span>{' '}
-              <span className="mono">{uploadResult.file_size_bytes.toLocaleString()} bytes</span>
-            </div>
-            <div>
-              <span style={{ color: 'var(--color-text-secondary)' }}>Total Packets:</span>{' '}
-              <span className="mono">{uploadResult.total_packets}</span>
-            </div>
-            <div>
-              <span style={{ color: 'var(--color-text-secondary)' }}>Analysis Job ID:</span>{' '}
-              <span className="mono">{uploadResult.job_id}</span>
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <span style={{ color: 'var(--color-text-secondary)' }}>SHA-256 Hash:</span><br />
-              <span className="hash">{uploadResult.sha256_hash}</span>
-            </div>
+          <table className="dense-table">
+            <tbody>
+              <tr>
+                <td style={{ width: '180px', fontWeight: 600, color: 'var(--color-text-muted)' }}>FILENAME</td>
+                <td className="mono" style={{ fontWeight: 700, color: 'var(--color-blue-700)' }}>
+                  {uploadResult.filename}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>FILE SIZE</td>
+                <td className="mono">{uploadResult.file_size_bytes.toLocaleString()} bytes</td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>TOTAL PACKETS</td>
+                <td className="mono">{uploadResult.total_packets} packets</td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>ANALYSIS JOB ID</td>
+                <td className="mono">{uploadResult.job_id}</td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>SHA-256 HASH</td>
+                <td className="hash">{uploadResult.sha256_hash}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* STEP 3: EXECUTE ANALYSIS PIPELINE */}
+      {uploadResult && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">STEP 3 — EXECUTE ANALYSIS PIPELINE</span>
           </div>
 
-          <button
-            onClick={handleStartAnalysis}
-            disabled={isStartingJob}
-            className="btn btn--primary"
-            style={{ marginTop: '20px', width: '100%', justifyContent: 'center', padding: '12px' }}
-          >
-            {isStartingJob ? (
-              <>
-                <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                Executing Pipeline (TCP, TLS, X.509, STARTTLS, Rules, Drift)...
-              </>
-            ) : (
-              <>
-                <Play size={18} /> Execute Forensic Pipeline & Open Overview
-              </>
-            )}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="pipeline-trace" style={{ justifyContent: 'space-between' }}>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>Ingest & Checksum</span>
+              </div>
+              <span className="pipeline-step-arrow">→</span>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>Session Assembly</span>
+              </div>
+              <span className="pipeline-step-arrow">→</span>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>TLS & X.509 Parse</span>
+              </div>
+              <span className="pipeline-step-arrow">→</span>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>Rule Engine</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleStartAnalysis}
+              disabled={isStartingJob}
+              className="btn btn--primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '10px', fontSize: '13px', gap: '8px' }}
+            >
+              {isStartingJob ? (
+                <>
+                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                  Executing Analysis Pipeline...
+                </>
+              ) : (
+                <>
+                  <Play size={16} /> Run Pipeline & Launch Investigation Workspace
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
     </div>

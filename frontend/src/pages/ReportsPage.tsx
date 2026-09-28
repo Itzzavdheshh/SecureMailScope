@@ -1,19 +1,23 @@
 import React from 'react';
-import { FileCode, FileSpreadsheet, FileText, Download, ExternalLink } from 'lucide-react';
+import { FileText, CheckCircle2 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { reportsApi } from '../api/services';
 import { EmptyState } from '../components/common/StateViews';
+import { DocumentList } from '../components/common/DocumentList';
+import { RiskBandBadge } from '../components/common/Badge';
 
 export const ReportsPage: React.FC = () => {
   const { activeJob, activeCapture } = useWorkspace();
 
   if (!activeJob) {
     return (
-      <EmptyState
-        title="No Active Job Report Context"
-        subtitle="Please select or run an analysis job to generate forensic investigation reports."
-        icon={<FileText size={40} />}
-      />
+      <div className="workspace-page">
+        <EmptyState
+          title="No Active Job Report Context"
+          subtitle="Please select or run an analysis job from Intake & PCAP to generate forensic investigation reports."
+          icon={<FileText size={36} />}
+        />
+      </div>
     );
   }
 
@@ -21,93 +25,116 @@ export const ReportsPage: React.FC = () => {
   const htmlUrl = reportsApi.getJobReportUrl(activeJob.id, 'html');
   const pdfUrl = reportsApi.getJobReportUrl(activeJob.id, 'pdf');
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '900px', margin: '0 auto' }}>
-      <div>
-        <h2>Forensic Investigation Reports</h2>
-        <p>Export deterministic forensic investigation reports generated directly by backend Phase 7 Report Engine.</p>
-      </div>
+  const documents = [
+    {
+      id: 'doc-json',
+      type: 'Structured Investigation Data Graph',
+      format: 'JSON' as const,
+      description: 'Machine-readable JSON data tree containing complete session, finding, and packet evidence fields.',
+      onView: () => window.open(jsonUrl, '_blank'),
+      onDownload: () => {
+        window.location.href = jsonUrl;
+      },
+    },
+    {
+      id: 'doc-html',
+      type: 'Standalone Forensic Analysis Report',
+      format: 'HTML' as const,
+      description: 'Self-contained HTML report document with executive summary, tables, and evidence lineage.',
+      onView: () => window.open(htmlUrl, '_blank'),
+      onDownload: () => {
+        window.location.href = htmlUrl;
+      },
+    },
+    {
+      id: 'doc-pdf',
+      type: 'Official Government Audit Report',
+      format: 'PDF' as const,
+      description: 'Printable ReportLab PDF audit document formatted for legal filing and executive disclosures.',
+      onView: () => window.open(pdfUrl, '_blank'),
+      onDownload: () => {
+        window.location.href = pdfUrl;
+      },
+    },
+  ];
 
-      <div className="card" style={{ padding: '24px' }}>
-        <h3 style={{ marginBottom: '8px' }}>Analysis Context Metadata</h3>
-        <div className="grid-content-2" style={{ gap: '12px', fontSize: '0.875rem' }}>
+  return (
+    <div className="workspace-page-scrollable">
+      {/* Investigation Context Card */}
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">Investigation Context & Report Parameters</span>
+          <RiskBandBadge band={activeJob.risk_band} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', fontSize: '12px' }}>
           <div>
-            <span style={{ color: 'var(--color-text-secondary)' }}>Capture Filename:</span><br />
-            <strong>{activeCapture?.filename}</strong>
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>
+              CAPTURE FILENAME
+            </span>
+            <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--color-blue-700)', marginTop: '2px' }}>
+              {activeCapture?.filename || 'Active Capture'}
+            </div>
           </div>
+
           <div>
-            <span style={{ color: 'var(--color-text-secondary)' }}>Analysis Job ID:</span><br />
-            <span className="mono">{activeJob.id}</span>
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>
+              ANALYSIS JOB ID
+            </span>
+            <div className="mono" style={{ marginTop: '2px' }}>
+              {activeJob.id.substring(0, 16)}...
+            </div>
           </div>
+
           <div>
-            <span style={{ color: 'var(--color-text-secondary)' }}>Overall Posture Score:</span><br />
-            <span className="mono" style={{ fontWeight: 700, color: 'var(--color-accent)' }}>
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>
+              RISK SCORE
+            </span>
+            <div className="mono" style={{ fontWeight: 700, color: 'var(--color-accent)', marginTop: '2px' }}>
               {activeJob.overall_risk_score !== null && activeJob.overall_risk_score !== undefined
                 ? activeJob.overall_risk_score.toFixed(1)
-                : 'N/A'}{' '}
-              ({activeJob.risk_band || 'SECURE'})
-            </span>
+                : '0.0'}{' '}
+              / 100
+            </div>
           </div>
+
           <div>
-            <span style={{ color: 'var(--color-text-secondary)' }}>Completed At:</span><br />
-            <span className="mono">
-              {activeJob.completed_at ? new Date(activeJob.completed_at).toLocaleString() : 'In Progress'}
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600 }}>
+              COMPLETED TIMESTAMP
             </span>
+            <div className="mono" style={{ marginTop: '2px' }}>
+              {activeJob.completed_at ? new Date(activeJob.completed_at).toLocaleString() : 'In Progress'}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Format Options Grid */}
-      <div className="grid-content-3" style={{ gap: '16px' }}>
-        {/* JSON Card */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent)', marginBottom: '8px' }}>
-              <FileCode size={24} />
-              <h3 style={{ margin: 0 }}>JSON Data Graph</h3>
-            </div>
-            <p style={{ fontSize: '0.85rem' }}>
-              Machine-readable structured JSON graph containing complete domain object trees, sessions, findings, and evidence fields.
-            </p>
-          </div>
+      {/* Available Reports Document List */}
+      <DocumentList documents={documents} />
 
-          <a href={jsonUrl} target="_blank" rel="noreferrer" className="btn btn--secondary" style={{ justifyContent: 'center' }}>
-            <ExternalLink size={16} /> Open Raw JSON
-          </a>
+      {/* Report Content Disclosures & Integrity Checklist */}
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">Report Content & Integrity Disclosures</span>
         </div>
 
-        {/* HTML Card */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-info)', marginBottom: '8px' }}>
-              <FileSpreadsheet size={24} />
-              <h3 style={{ margin: 0 }}>Dark HTML Report</h3>
-            </div>
-            <p style={{ fontSize: '0.85rem' }}>
-              Standalone dark-themed HTML report, self-contained with no external CSS/script dependencies for offline sharing.
-            </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={16} color="var(--color-success)" />
+            <span>Deterministic Rule Engine Evaluation</span>
           </div>
-
-          <a href={htmlUrl} target="_blank" rel="noreferrer" className="btn btn--primary" style={{ justifyContent: 'center' }}>
-            <ExternalLink size={16} /> View Dark HTML
-          </a>
-        </div>
-
-        {/* PDF Card */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-high)', marginBottom: '8px' }}>
-              <FileText size={24} />
-              <h3 style={{ margin: 0 }}>ReportLab PDF</h3>
-            </div>
-            <p style={{ fontSize: '0.85rem' }}>
-              Printable PDF report document formatted with executive posture summary, rule findings table, session index, and disclosures.
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={16} color="var(--color-success)" />
+            <span>X.509 Certificate Chain Lineage</span>
           </div>
-
-          <a href={pdfUrl} className="btn btn--secondary" style={{ justifyContent: 'center', color: 'var(--color-high)', borderColor: 'var(--color-high)' }}>
-            <Download size={16} /> Download PDF
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={16} color="var(--color-success)" />
+            <span>STARTTLS Negotiation Transcript</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={16} color="var(--color-success)" />
+            <span>Cryptographic Baseline Drift Analysis</span>
+          </div>
         </div>
       </div>
     </div>

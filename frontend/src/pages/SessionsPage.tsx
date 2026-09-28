@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Layers, Filter, Eye, RefreshCw } from 'lucide-react';
+import { Layers, ExternalLink, RefreshCw } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { sessionsApi, type SessionFilterParams } from '../api/services';
 import type { EmailSessionRead, PaginatedResponse } from '../types/api';
 import { StarttlsStateBadge } from '../components/common/Badge';
 import { Pagination } from '../components/common/Pagination';
 import { LoadingState, EmptyState, ErrorState } from '../components/common/StateViews';
+import { FilterToolbar, type FilterOption } from '../components/common/FilterToolbar';
+import { DataTable, type Column } from '../components/common/DataTable';
+import { InspectorPanel } from '../components/common/InspectorPanel';
 
 export const SessionsPage: React.FC = () => {
   const { activeJob } = useWorkspace();
   const [data, setData] = useState<PaginatedResponse<EmailSessionRead> | null>(null);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<SessionFilterParams>({});
+  const [searchVal, setSearchVal] = useState('');
+  const [selectedSession, setSelectedSession] = useState<EmailSessionRead | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -25,10 +30,13 @@ export const SessionsPage: React.FC = () => {
       const res = await sessionsApi.list({
         job_id: activeJob?.id,
         page: currentPage,
-        page_size: 20,
+        page_size: 25,
         ...currentFilters,
       });
       setData(res);
+      if (res.items.length > 0 && !selectedSession) {
+        setSelectedSession(res.items[0]);
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to fetch email sessions.');
     } finally {
@@ -47,198 +55,271 @@ export const SessionsPage: React.FC = () => {
     fetchSessions(1, nextFilters);
   };
 
+  const filterOptions: FilterOption[] = [
+    {
+      key: 'protocol',
+      label: 'Protocol',
+      value: filters.protocol || '',
+      options: [
+        { label: 'SMTP', value: 'SMTP' },
+        { label: 'IMAP', value: 'IMAP' },
+        { label: 'POP3', value: 'POP3' },
+      ],
+      onChange: (val) => handleFilterChange('protocol', val),
+    },
+    {
+      key: 'starttls_state',
+      label: 'STARTTLS',
+      value: filters.starttls_state || '',
+      options: [
+        { label: 'NOT OBSERVED', value: 'NOT_OBSERVED' },
+        { label: 'ADVERTISED', value: 'ADVERTISED' },
+        { label: 'ATTEMPTED', value: 'ATTEMPTED' },
+        { label: 'ESTABLISHED', value: 'ESTABLISHED' },
+        { label: 'REJECTED', value: 'REJECTED' },
+        { label: 'CLEARTEXT FALLBACK', value: 'CLEARTEXT_FALLBACK' },
+      ],
+      onChange: (val) => handleFilterChange('starttls_state', val),
+    },
+    {
+      key: 'tls_version',
+      label: 'TLS',
+      value: filters.tls_version || '',
+      options: [
+        { label: 'TLS 1.3', value: 'TLS 1.3' },
+        { label: 'TLS 1.2', value: 'TLS 1.2' },
+        { label: 'TLS 1.1', value: 'TLS 1.1' },
+        { label: 'TLS 1.0', value: 'TLS 1.0' },
+      ],
+      onChange: (val) => handleFilterChange('tls_version', val),
+    },
+  ];
+
+  const columns: Column<EmailSessionRead>[] = [
+    {
+      key: 'session_index',
+      header: 'INDEX',
+      width: '60px',
+      render: (s) => <span className="mono">#{s.session_index}</span>,
+    },
+    {
+      key: 'client_endpoint',
+      header: 'CLIENT ENDPOINT',
+      render: (s) => (
+        <span className="mono" style={{ fontSize: '11px' }}>
+          {s.client_ip}:{s.client_port}
+        </span>
+      ),
+    },
+    {
+      key: 'server_endpoint',
+      header: 'SERVER ENDPOINT',
+      render: (s) => (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span className="mono" style={{ fontSize: '11px' }}>
+            {s.server_ip}:{s.server_port}
+          </span>
+          {s.hostname && <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{s.hostname}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'protocol',
+      header: 'PROTO',
+      width: '60px',
+      render: (s) => <span className="mono" style={{ fontWeight: 600 }}>{s.protocol}</span>,
+    },
+    {
+      key: 'starttls_state',
+      header: 'STARTTLS STATE',
+      render: (s) => <StarttlsStateBadge state={s.starttls_state} />,
+    },
+    {
+      key: 'tls_version',
+      header: 'NEGOTIATED TLS',
+      render: (s) => (
+        s.tls_handshake?.negotiated_tls_version ? (
+          <span className="mono" style={{ color: 'var(--color-blue-700)', fontWeight: 600 }}>
+            {s.tls_handshake.negotiated_tls_version}
+          </span>
+        ) : s.is_tls_implicit ? (
+          <span style={{ color: 'var(--color-info)', fontSize: '11px' }}>Implicit TLS</span>
+        ) : (
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Plaintext</span>
+        )
+      ),
+    },
+    {
+      key: 'risk_score',
+      header: 'RISK',
+      width: '60px',
+      align: 'right',
+      render: (s) => (
+        <span
+          className="mono"
+          style={{
+            fontWeight: 700,
+            color:
+              (s.risk_score || 0) >= 40
+                ? 'var(--color-high)'
+                : (s.risk_score || 0) >= 20
+                ? 'var(--color-warning)'
+                : 'var(--color-success)',
+          }}
+        >
+          {s.risk_score !== null && s.risk_score !== undefined ? s.risk_score.toFixed(1) : '-'}
+        </span>
+      ),
+    },
+  ];
+
+  const filteredItems = (data?.items || []).filter((s) => {
+    if (!searchVal) return true;
+    const term = searchVal.toLowerCase();
+    return (
+      s.client_ip.toLowerCase().includes(term) ||
+      s.server_ip.toLowerCase().includes(term) ||
+      (s.hostname && s.hostname.toLowerCase().includes(term)) ||
+      s.protocol.toLowerCase().includes(term)
+    );
+  });
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2>Reconstructed Mail Sessions</h2>
-          <p>Inspect forensic email sessions, STARTTLS negotiation, TLS parameters, and risk scores.</p>
-        </div>
-        <button onClick={() => fetchSessions(page, filters)} className="btn btn--ghost">
-          <RefreshCw size={16} /> Refresh
-        </button>
-      </div>
+    <div className="workspace-page">
+      {/* Top Filter Toolbar */}
+      <FilterToolbar
+        searchPlaceholder="Filter IP, hostname, protocol..."
+        searchValue={searchVal}
+        onSearchChange={(val) => setSearchVal(val)}
+        filters={filterOptions}
+        onReset={() => {
+          setFilters({});
+          setSearchVal('');
+          fetchSessions(1, {});
+        }}
+        actionButton={
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ padding: '4px 8px', fontSize: '12px' }}
+            onClick={() => fetchSessions(page, filters)}
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
+        }
+      />
 
-      {/* Filter Toolbar */}
-      <div className="card" style={{ padding: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.85rem', fontWeight: 600 }}>
-          <Filter size={16} style={{ color: 'var(--color-accent)' }} /> Server-Side Session Filters
-        </div>
-
-        <div className="grid-content" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
-          <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '4px' }}>
-              Protocol
-            </label>
-            <select
-              className="input"
-              value={filters.protocol || ''}
-              onChange={(e) => handleFilterChange('protocol', e.target.value)}
-            >
-              <option value="">All Protocols</option>
-              <option value="SMTP">SMTP</option>
-              <option value="IMAP">IMAP</option>
-              <option value="POP3">POP3</option>
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '4px' }}>
-              STARTTLS State
-            </label>
-            <select
-              className="input"
-              value={filters.starttls_state || ''}
-              onChange={(e) => handleFilterChange('starttls_state', e.target.value)}
-            >
-              <option value="">All States</option>
-              <option value="NOT_OBSERVED">NOT OBSERVED</option>
-              <option value="ADVERTISED">ADVERTISED</option>
-              <option value="ATTEMPTED">ATTEMPTED</option>
-              <option value="ESTABLISHED">ESTABLISHED</option>
-              <option value="REJECTED">REJECTED</option>
-              <option value="DISABLED">DISABLED</option>
-              <option value="CLEARTEXT_FALLBACK">CLEARTEXT FALLBACK</option>
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '4px' }}>
-              TLS Version
-            </label>
-            <select
-              className="input"
-              value={filters.tls_version || ''}
-              onChange={(e) => handleFilterChange('tls_version', e.target.value)}
-            >
-              <option value="">All Versions</option>
-              <option value="TLS 1.3">TLS 1.3</option>
-              <option value="TLS 1.2">TLS 1.2</option>
-              <option value="TLS 1.1">TLS 1.1</option>
-              <option value="TLS 1.0">TLS 1.0</option>
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '4px' }}>
-              Server IP / Host
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. 192.168.1.1"
-              className="input"
-              value={filters.server_ip || filters.hostname || ''}
-              onChange={(e) => handleFilterChange('server_ip', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Table */}
+      {/* Main Master/Detail Layout */}
       {isLoading ? (
-        <LoadingState message="Fetching reconstructed mail sessions..." />
+        <LoadingState message="Reconstructing mail sessions and extracting handshake parameters..." />
       ) : errorMsg ? (
         <ErrorState message={errorMsg} onRetry={() => fetchSessions(page, filters)} />
       ) : !data || data.items.length === 0 ? (
         <EmptyState
-          title="No Mail Sessions Observed"
-          subtitle="No email sessions were observed matching the selected job or filter criteria."
-          icon={<Layers size={40} />}
+          title="No Reconstructed Mail Sessions"
+          subtitle="No email sessions matching the selected filter criteria were found."
+          icon={<Layers size={36} />}
         />
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Index</th>
-                <th>Client Endpoint</th>
-                <th>Server Endpoint</th>
-                <th>Protocol</th>
-                <th>STARTTLS State</th>
-                <th>Negotiated TLS</th>
-                <th>Cipher Suite</th>
-                <th>Risk Score</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((s) => (
-                <tr key={s.id}>
-                  <td className="mono">#{s.session_index}</td>
-                  <td className="mono" style={{ fontSize: '0.8rem' }}>
-                    {s.client_ip}:{s.client_port}
-                  </td>
-                  <td className="mono" style={{ fontSize: '0.8rem' }}>
-                    {s.server_ip}:{s.server_port}
-                    {s.hostname && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{s.hostname}</div>
-                    )}
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        background: 'var(--color-bg-primary)',
-                        fontWeight: 600,
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      {s.protocol}
-                    </span>
-                  </td>
-                  <td>
-                    <StarttlsStateBadge state={s.starttls_state} />
-                  </td>
-                  <td>
-                    {s.tls_handshake?.negotiated_tls_version ? (
-                      <span className="mono" style={{ color: 'var(--color-accent)' }}>
-                        {s.tls_handshake.negotiated_tls_version}
-                      </span>
-                    ) : s.is_tls_implicit ? (
-                      <span style={{ color: 'var(--color-info)', fontSize: '0.8rem' }}>Implicit TLS</span>
-                    ) : (
-                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>Plaintext</span>
-                    )}
-                  </td>
-                  <td className="hash" style={{ maxWidth: '180px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                    {s.tls_handshake?.negotiated_cipher_suite || 'None'}
-                  </td>
-                  <td className="mono" style={{ fontWeight: 600 }}>
-                    <span
-                      style={{
-                        color:
-                          (s.risk_score || 0) >= 40
-                            ? 'var(--color-high)'
-                            : (s.risk_score || 0) >= 20
-                            ? 'var(--color-warning)'
-                            : 'var(--color-success)',
-                      }}
-                    >
-                      {s.risk_score !== null && s.risk_score !== undefined ? s.risk_score.toFixed(1) : 'N/A'}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => navigate(`/sessions/${s.id}`)}
-                      className="btn btn--ghost"
-                      style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                    >
-                      <Eye size={14} /> Inspect
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="master-detail-container">
+          {/* Master Table */}
+          <div className="master-pane">
+            <DataTable
+              columns={columns}
+              data={filteredItems}
+              keyExtractor={(s) => s.id}
+              selectedKey={selectedSession?.id}
+              onRowClick={(s) => setSelectedSession(s)}
+            />
 
-          <Pagination
-            page={data.page}
-            totalPages={data.total_pages}
-            totalItems={data.total}
-            pageSize={data.page_size}
-            onPageChange={(p) => setPage(p)}
-          />
+            <div style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+              <Pagination
+                page={data.page}
+                totalPages={data.total_pages}
+                totalItems={data.total}
+                pageSize={data.page_size}
+                onPageChange={(p) => setPage(p)}
+              />
+            </div>
+          </div>
+
+          {/* Right Inspector Panel */}
+          {selectedSession && (
+            <InspectorPanel
+              title={`SESSION #${selectedSession.session_index}`}
+              subtitle={`${selectedSession.protocol} · ${selectedSession.client_ip}:${selectedSession.client_port} → ${selectedSession.server_ip}:${selectedSession.server_port}`}
+              onClose={() => setSelectedSession(null)}
+            >
+              <div className="inspector-section">
+                <div className="inspector-section-title">SECURITY POSTURE & RISK</div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Risk Score</div>
+                  <div className="detail-row__value" style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                    {selectedSession.risk_score !== null && selectedSession.risk_score !== undefined
+                      ? selectedSession.risk_score.toFixed(1)
+                      : '0.0'}
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}> / 100</span>
+                  </div>
+                </div>
+                <div className="detail-row">
+                  <div className="detail-row__label">STARTTLS State</div>
+                  <div className="detail-row__value">
+                    <StarttlsStateBadge state={selectedSession.starttls_state} />
+                  </div>
+                </div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Implicit TLS</div>
+                  <div className="detail-row__value">
+                    {selectedSession.is_tls_implicit ? 'Yes' : 'No'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="inspector-section">
+                <div className="inspector-section-title">CRYPTOGRAPHIC PARAMETERS</div>
+                <div className="detail-row">
+                  <div className="detail-row__label">TLS Version</div>
+                  <div className="detail-row__value mono">
+                    {selectedSession.tls_handshake?.negotiated_tls_version || 'None (Plaintext)'}
+                  </div>
+                </div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Cipher Suite</div>
+                  <div className="detail-row__value hash">
+                    {selectedSession.tls_handshake?.negotiated_cipher_suite || 'None'}
+                  </div>
+                </div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Certificate</div>
+                  <div className="detail-row__value hash">
+                    {selectedSession.certificates?.[0]?.sha256_fingerprint || 'No certificate presented'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="inspector-section">
+                <div className="inspector-section-title">TRAFFIC METRICS & PACKETS</div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Packet Count</div>
+                  <div className="detail-row__value mono">
+                    {selectedSession.packet_count} packets ({selectedSession.bytes_transferred.toLocaleString()} bytes)
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 'auto', paddingTop: '12px' }}>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  style={{ width: '100%', justifyContent: 'center', fontSize: '12px', gap: '6px' }}
+                  onClick={() => navigate(`/sessions/${selectedSession.id}`)}
+                >
+                  <ExternalLink size={14} />
+                  <span>Inspect Full Packet Stream & Transcript</span>
+                </button>
+              </div>
+            </InspectorPanel>
+          )}
         </div>
       )}
     </div>

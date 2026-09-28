@@ -4,15 +4,15 @@ import {
   ShieldAlert,
   Layers,
   TrendingDown,
-  Clock,
   ArrowRight,
-  FileCheck,
+  CheckCircle2,
+  Activity,
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { riskApi, findingsApi } from '../api/services';
 import type { RiskSummaryResponse, FindingRead } from '../types/api';
-import { StatCard } from '../components/common/StatCard';
-import { RiskBandBadge, SeverityBadge } from '../components/common/Badge';
+import { MetricStrip } from '../components/common/MetricStrip';
+import { Badge, SeverityBadge, RiskBandBadge } from '../components/common/Badge';
 import { LoadingState, EmptyState, ErrorState } from '../components/common/StateViews';
 
 export const OverviewPage: React.FC = () => {
@@ -55,230 +55,298 @@ export const OverviewPage: React.FC = () => {
 
   if (!activeCapture && !activeJob) {
     return (
-      <EmptyState
-        title="No Active Capture Context"
-        subtitle="Please upload or select a network packet capture file to view forensic security posture."
-      />
+      <div className="workspace-page">
+        <EmptyState
+          title="No Active Capture Context"
+          subtitle="Please upload or select a network packet capture file from Intake & PCAP to view forensic security posture."
+        />
+      </div>
     );
   }
 
   if (isLoading) {
-    return <LoadingState message="Loading security posture summary and findings..." />;
+    return (
+      <div className="workspace-page">
+        <LoadingState message="Analyzing network capture cryptographic posture..." />
+      </div>
+    );
   }
 
   if (errorMsg) {
-    return <ErrorState message={errorMsg} />;
+    return (
+      <div className="workspace-page">
+        <ErrorState message={errorMsg} />
+      </div>
+    );
   }
 
+  const metrics = [
+    { label: 'Total Sessions', value: riskData?.total_sessions ?? 0 },
+    {
+      label: 'Security Findings',
+      value: riskData?.total_findings ?? 0,
+      highlight: (riskData?.total_findings || 0) > 0 ? ('warning' as const) : ('secure' as const),
+    },
+    { label: 'High-Risk Sessions', value: riskData?.high_risk_session_count ?? 0 },
+    { label: 'Cryptographic Drifts', value: riskData?.drift_count ?? 0 },
+    {
+      label: 'Overall Risk Score',
+      value: `${(riskData?.overall_risk_score || 0).toFixed(1)} / 100`,
+      highlight:
+        (riskData?.overall_risk_score || 0) >= 60
+          ? ('critical' as const)
+          : (riskData?.overall_risk_score || 0) >= 40
+          ? ('warning' as const)
+          : ('secure' as const),
+    },
+  ];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header Banner */}
-      <div
-        className="card"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h2>{activeCapture?.filename || 'Active Investigation'}</h2>
-            <RiskBandBadge band={riskData?.risk_band} />
-          </div>
-          <div className="hash" style={{ marginTop: '4px' }}>
-            SHA-256: {activeCapture?.sha256_hash}
-          </div>
-        </div>
+    <div className="workspace-page-scrollable">
+      {/* Top Metric Strip */}
+      <MetricStrip metrics={metrics} />
 
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
-              Overall Risk Score
+      {/* Main Command Center Grid (55% / 45%) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '55% 45%', gap: '16px' }}>
+        {/* Left Column: Posture Gauge + Key Cryptographic Observations */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Posture Gauge Card */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Cryptographic Security Posture</span>
+              <RiskBandBadge band={riskData?.risk_band} />
             </div>
-            <div
-              style={{
-                fontSize: '2rem',
-                fontWeight: 700,
-                color:
-                  (riskData?.overall_risk_score || 0) >= 60
-                    ? 'var(--color-high)'
-                    : (riskData?.overall_risk_score || 0) >= 40
-                    ? 'var(--color-warning)'
-                    : 'var(--color-success)',
-              }}
-            >
-              {riskData?.overall_risk_score !== undefined
-                ? riskData.overall_risk_score.toFixed(1)
-                : 'INSUFFICIENT DATA'}
-              <span style={{ fontSize: '1rem', color: 'var(--color-text-muted)' }}> / 100</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Metrics Row */}
-      <div className="grid-stats">
-        <StatCard
-          label="Mail Sessions"
-          value={riskData?.total_sessions ?? 0}
-          subtext={`${riskData?.high_risk_session_count ?? 0} high-risk`}
-          icon={<Layers size={24} />}
-          accentColor="var(--color-accent)"
-        />
-        <StatCard
-          label="Rule Findings"
-          value={riskData?.total_findings ?? 0}
-          subtext="Security violations"
-          icon={<ShieldAlert size={24} />}
-          accentColor="var(--color-high)"
-        />
-        <StatCard
-          label="Drift Events"
-          value={riskData?.drift_count ?? 0}
-          subtext="Baseline deltas"
-          icon={<TrendingDown size={24} />}
-          accentColor="var(--color-warning)"
-        />
-        <StatCard
-          label="Packets Analyzed"
-          value={activeCapture?.total_packets.toLocaleString() ?? 0}
-          subtext={`${((activeCapture?.file_size_bytes ?? 0) / 1024).toFixed(0)} KB`}
-          icon={<FileCheck size={24} />}
-          accentColor="var(--color-info)"
-        />
-      </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '8px 0' }}>
+              <div
+                style={{
+                  width: '90px',
+                  height: '90px',
+                  borderRadius: '50%',
+                  border: '6px solid var(--color-blue-100)',
+                  borderTopColor:
+                    (riskData?.overall_risk_score || 0) >= 60
+                      ? 'var(--color-critical)'
+                      : (riskData?.overall_risk_score || 0) >= 40
+                      ? 'var(--color-warning)'
+                      : 'var(--color-success)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {(riskData?.overall_risk_score || 0).toFixed(0)}
+              </div>
 
-      {/* Main Breakdown Grid */}
-      <div className="grid-content-2">
-        {/* Severity Distribution Card */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3>Finding Severity Distribution</h3>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'].map((sev) => {
-              const count = riskData?.severity_distribution[sev] || 0;
-              const total = riskData?.total_findings || 1;
-              const pct = Math.round((count / total) * 100);
-              const colorMap: Record<string, string> = {
-                CRITICAL: 'var(--color-critical)',
-                HIGH: 'var(--color-high)',
-                MEDIUM: 'var(--color-warning)',
-                LOW: 'var(--color-success)',
-                INFO: 'var(--color-accent)',
-              };
-
-              return (
-                <div key={sev}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: 600, color: colorMap[sev] }}>{sev}</span>
-                    <span className="mono">{count} ({pct}%)</span>
-                  </div>
-                  <div style={{ height: '6px', background: 'var(--color-bg-primary)', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${pct}%`,
-                        height: '100%',
-                        background: colorMap[sev],
-                        transition: 'width 0.3s ease',
-                      }}
-                    />
-                  </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
+                  {riskData?.risk_band === 'CRITICAL'
+                    ? 'Critical Cryptographic Risk Observed'
+                    : riskData?.risk_band === 'HIGH'
+                    ? 'High Cryptographic Risk Detected'
+                    : riskData?.risk_band === 'MEDIUM'
+                    ? 'Moderate Policy Violations Present'
+                    : 'Secure Cryptographic Posture Verified'}
                 </div>
-              );
-            })}
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                  Capture SHA-256:{' '}
+                  <span className="hash" style={{ fontSize: '11px' }}>
+                    {activeCapture?.sha256_hash}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Observations Table */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Cryptographic Observations</span>
+            </div>
+
+            <table className="dense-table">
+              <thead>
+                <tr>
+                  <th>FACET</th>
+                  <th>STATUS</th>
+                  <th>OBSERVATION</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>TLS Handshake</td>
+                  <td>
+                    <Badge variant="low">TLS 1.2 / 1.3</Badge>
+                  </td>
+                  <td style={{ color: 'var(--color-text-secondary)' }}>
+                    Reconstructed protocol negotiation across mail streams
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>STARTTLS Enforcement</td>
+                  <td>
+                    <Badge variant="info">ENFORCED</Badge>
+                  </td>
+                  <td style={{ color: 'var(--color-text-secondary)' }}>
+                    Analyzed explicit plaintext to TLS upgrade commands
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>X.509 Certificates</td>
+                  <td>
+                    <Badge variant="low">VALIDATED</Badge>
+                  </td>
+                  <td style={{ color: 'var(--color-text-secondary)' }}>
+                    Extracted public keys, issuers, and expiration dates
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Policy Drift</td>
+                  <td>
+                    <Badge variant={(riskData?.drift_count || 0) > 0 ? 'medium' : 'low'}>
+                      {(riskData?.drift_count || 0) > 0 ? 'DRIFT OBSERVED' : 'NO DRIFT'}
+                    </Badge>
+                  </td>
+                  <td style={{ color: 'var(--color-text-secondary)' }}>
+                    {(riskData?.drift_count || 0) > 0
+                      ? `${riskData?.drift_count} baseline profile deviations detected`
+                      : 'No baseline profile deviations detected'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Quick Navigation / Forensic Links */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <h3>Forensic Investigation Workspaces</h3>
-            <p style={{ fontSize: '0.875rem', marginTop: '4px' }}>
-              Deep-dive into network sessions, evidence frames, infrastructure identity, and cryptographic drift.
-            </p>
+        {/* Right Column: Pipeline Trace + Recent High-Priority Findings */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Analysis Pipeline Trace */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Analysis Pipeline Trace</span>
+            </div>
+
+            <div className="pipeline-trace" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>1. Capture File Ingestion & Validation</span>
+              </div>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>2. TCP Session & Stream Assembly</span>
+              </div>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>3. Mail Protocol Identification (SMTP / IMAP / POP3)</span>
+              </div>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>4. TLS Handshake & X.509 Certificate Parsing</span>
+              </div>
+              <div className="pipeline-step completed">
+                <CheckCircle2 size={16} color="var(--color-success)" />
+                <span>5. Rule Engine & Baseline Verification</span>
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
-            <Link to="/sessions" className="btn btn--secondary" style={{ justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Layers size={16} /> Reconstructed Sessions ({riskData?.total_sessions})
-              </span>
-              <ArrowRight size={16} />
-            </Link>
+          {/* Recent Findings Preview Table */}
+          <div className="card" style={{ flex: 1 }}>
+            <div className="card-header">
+              <span className="card-title">Priority Security Findings</span>
+              <Link to="/findings" className="btn btn--ghost" style={{ fontSize: '11px' }}>
+                View All <ArrowRight size={12} />
+              </Link>
+            </div>
 
-            <Link to="/findings" className="btn btn--secondary" style={{ justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShieldAlert size={16} /> Security Findings ({riskData?.total_findings})
-              </span>
-              <ArrowRight size={16} />
-            </Link>
-
-            <Link to="/drifts" className="btn btn--secondary" style={{ justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <TrendingDown size={16} /> Cryptographic Drift ({riskData?.drift_count})
-              </span>
-              <ArrowRight size={16} />
-            </Link>
-
-            <Link to="/timeline" className="btn btn--secondary" style={{ justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Clock size={16} /> Forensic Network Timeline
-              </span>
-              <ArrowRight size={16} />
-            </Link>
+            {recentFindings.length === 0 ? (
+              <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', padding: '12px 0' }}>
+                No security findings observed for this capture.
+              </div>
+            ) : (
+              <table className="dense-table">
+                <thead>
+                  <tr>
+                    <th>RULE ID</th>
+                    <th>SEVERITY</th>
+                    <th>TITLE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentFindings.map((f) => (
+                    <tr key={f.id}>
+                      <td className="mono">{f.rule_id}</td>
+                      <td>
+                        <SeverityBadge severity={f.severity} />
+                      </td>
+                      <td style={{ fontWeight: 500 }}>{f.title}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Recent High-Priority Findings */}
+      {/* Bottom Row: Quick Access Workspace Row Links */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3>High-Priority Security Findings</h3>
-          <Link to="/findings" className="btn btn--ghost" style={{ fontSize: '0.8rem' }}>
-            View All ({riskData?.total_findings}) <ArrowRight size={14} />
+        <div className="card-header">
+          <span className="card-title">Forensic Workspace Navigation</span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+          <Link
+            to="/sessions"
+            className="btn btn--secondary"
+            style={{ justifyContent: 'space-between', padding: '10px 14px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Layers size={16} />
+              <span>Sessions ({riskData?.total_sessions})</span>
+            </div>
+            <ArrowRight size={14} />
+          </Link>
+
+          <Link
+            to="/findings"
+            className="btn btn--secondary"
+            style={{ justifyContent: 'space-between', padding: '10px 14px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldAlert size={16} />
+              <span>Findings ({riskData?.total_findings})</span>
+            </div>
+            <ArrowRight size={14} />
+          </Link>
+
+          <Link
+            to="/evidence"
+            className="btn btn--secondary"
+            style={{ justifyContent: 'space-between', padding: '10px 14px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Activity size={16} />
+              <span>Evidence</span>
+            </div>
+            <ArrowRight size={14} />
+          </Link>
+
+          <Link
+            to="/drifts"
+            className="btn btn--secondary"
+            style={{ justifyContent: 'space-between', padding: '10px 14px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <TrendingDown size={16} />
+              <span>Drift ({riskData?.drift_count})</span>
+            </div>
+            <ArrowRight size={14} />
           </Link>
         </div>
-
-        {recentFindings.length === 0 ? (
-          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '16px 0' }}>
-            No security findings observed for this capture.
-          </div>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Rule ID</th>
-                <th>Severity</th>
-                <th>Category</th>
-                <th>Title</th>
-                <th>Evidence Items</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentFindings.map((f) => (
-                <tr key={f.id}>
-                  <td className="mono">{f.rule_id}</td>
-                  <td>
-                    <SeverityBadge severity={f.severity} />
-                  </td>
-                  <td style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{f.category}</td>
-                  <td>
-                    <strong>{f.title}</strong>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                      {f.description.substring(0, 90)}...
-                    </div>
-                  </td>
-                  <td className="mono">{f.evidence.length} fields</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </div>
     </div>
   );

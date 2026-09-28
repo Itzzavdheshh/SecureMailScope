@@ -46,7 +46,7 @@ export const SessionDetailPage: React.FC = () => {
   const findings = session.findings || [];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="workspace-page-scrollable">
       {/* Top Header Navigation */}
       <div>
         <Link to="/sessions" className="btn btn--ghost" style={{ padding: '4px 0', fontSize: '0.85rem', marginBottom: '8px' }}>
