@@ -1,0 +1,286 @@
+# SecureMailScope — TLS Cryptographic Rules
+# Version: 1.0.0
+# Last updated: 2026-09-27
+# Authority: NIST SP 800-52 Rev 2, NIST SP 800-57, RFC 8446, BSI TR-02102-2
+#
+# Rule fields:
+#   id          — unique rule identifier (CRYPT-NNN)
+#   title       — short display name
+#   severity    — CRITICAL | HIGH | MEDIUM | LOW | INFO
+#   description — what this rule detects
+#   rationale   — why this matters cryptographically
+#   remediation — recommended fix
+#   references  — authoritative standards
+#   detection:
+#     field     — the observed field name from analysis
+#     condition — comparison operator
+#     value     — threshold or set of bad values
+#   evidence_requirements:
+#     requires  — list of evidence pieces that must exist
+#   confidence_when_missing — confidence level if evidence is absent
+
+version: "1.0.0"
+schema: "securemailscope/rules/tls/v1"
+
+rules:
+
+  - id: CRYPT-001
+    title: "Deprecated TLS Version — TLS 1.0 Negotiated"
+    severity: HIGH
+    description: >
+      The captured TLS handshake negotiated TLS 1.0. This version has known
+      cryptographic weaknesses including susceptibility to BEAST and POODLE-like
+      attacks and lacks support for modern AEAD cipher suites.
+    rationale: >
+      TLS 1.0 was deprecated by RFC 8996 (March 2021). NIST SP 800-52 Rev 2
+      prohibits TLS 1.0 for US government systems. PCI DSS 3.2 requires migration
+      away from TLS 1.0.
+    remediation: >
+      Configure the mail server to support only TLS 1.2 and TLS 1.3.
+      Remove TLS 1.0 and TLS 1.1 from the server's supported versions list.
+    references:
+      - "RFC 8996: Deprecating TLS 1.0 and TLS 1.1"
+      - "NIST SP 800-52 Rev 2 Section 3.1"
+      - "PCI DSS 4.0 Requirement 4.2.1"
+    detection:
+      field: negotiated_tls_version
+      condition: equals
+      value: "TLS 1.0"
+    evidence_requirements:
+      requires:
+        - negotiated_tls_version
+        - server_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-002
+    title: "Deprecated TLS Version — TLS 1.1 Negotiated"
+    severity: HIGH
+    description: >
+      The captured TLS handshake negotiated TLS 1.1. This version was deprecated
+      by RFC 8996 and lacks support for modern authenticated encryption.
+    rationale: >
+      TLS 1.1 was deprecated alongside TLS 1.0. It does not support GCM cipher
+      suites and has weaker MAC construction compared to TLS 1.2+.
+    remediation: >
+      Configure the mail server to support only TLS 1.2 and TLS 1.3.
+    references:
+      - "RFC 8996: Deprecating TLS 1.0 and TLS 1.1"
+      - "NIST SP 800-52 Rev 2 Section 3.1"
+    detection:
+      field: negotiated_tls_version
+      condition: equals
+      value: "TLS 1.1"
+    evidence_requirements:
+      requires:
+        - negotiated_tls_version
+        - server_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-003
+    title: "Critically Deprecated Protocol — SSL 3.0 or SSL 2.0 Negotiated"
+    severity: CRITICAL
+    description: >
+      The captured handshake negotiated SSL 3.0 or SSL 2.0. These protocols are
+      critically deprecated and vulnerable to POODLE, DROWN, and other attacks.
+    rationale: >
+      SSL 3.0 and SSL 2.0 have fundamental design flaws. SSL 2.0 was prohibited
+      by RFC 6176 (2011). SSL 3.0 was prohibited by RFC 7568 (2015).
+    remediation: >
+      Immediately disable SSL 2.0 and SSL 3.0. These must not appear in any
+      server configuration.
+    references:
+      - "RFC 6176: Prohibiting SSL 2.0"
+      - "RFC 7568: Deprecating SSL 3.0"
+      - "NIST SP 800-52 Rev 2"
+    detection:
+      field: negotiated_tls_version
+      condition: in
+      value: ["SSL 3.0", "SSL 2.0", "SSLv3", "SSLv2"]
+    evidence_requirements:
+      requires:
+        - negotiated_tls_version
+        - server_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-004
+    title: "No Forward Secrecy — Static RSA Key Exchange"
+    severity: HIGH
+    description: >
+      The negotiated cipher suite uses static RSA key exchange, which does not
+      provide Forward Secrecy. If the server's private key is ever compromised,
+      all historical traffic can be decrypted.
+    rationale: >
+      Forward Secrecy (Perfect Forward Secrecy) ensures that compromise of long-term
+      keys does not compromise past session keys. Static RSA key exchange (no DHE/ECDHE)
+      is prohibited by NIST SP 800-52 Rev 2 for government systems.
+    remediation: >
+      Configure the server to prioritize cipher suites using ECDHE or DHE key exchange.
+      Remove RSA key exchange cipher suites from the server configuration.
+    references:
+      - "NIST SP 800-52 Rev 2 Section 3.3.1"
+      - "BSI TR-02102-2 Section 3.2"
+    detection:
+      field: forward_secrecy
+      condition: equals
+      value: false
+    evidence_requirements:
+      requires:
+        - negotiated_cipher_suite
+        - key_exchange_algorithm
+        - server_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-005
+    title: "Critically Weak Cipher Suite — RC4, DES, 3DES, NULL, or EXPORT"
+    severity: CRITICAL
+    description: >
+      The negotiated cipher suite uses a critically weak or broken algorithm.
+      RC4 is cryptographically broken. DES and 3DES have insufficient key length.
+      NULL and EXPORT cipher suites provide no or deliberately weakened security.
+    rationale: >
+      These cipher suites are prohibited by multiple standards. RC4 was prohibited
+      by RFC 7465. DES and 3DES are considered broken for many use cases.
+    remediation: >
+      Remove all RC4, DES, 3DES, NULL, and EXPORT cipher suites from server
+      configuration. Use only AEAD cipher suites (AES-GCM, ChaCha20-Poly1305).
+    references:
+      - "RFC 7465: Prohibiting RC4 Cipher Suites"
+      - "NIST SP 800-52 Rev 2 Appendix A"
+      - "BSI TR-02102-2 Section 3.3"
+    detection:
+      field: cipher_family
+      condition: in
+      value: ["RC4", "DES", "3DES", "NULL", "EXPORT", "ANON"]
+    evidence_requirements:
+      requires:
+        - negotiated_cipher_suite
+        - cipher_family
+        - server_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-006
+    title: "Weak Key Exchange — Non-Ephemeral Diffie-Hellman"
+    severity: MEDIUM
+    description: >
+      The negotiated cipher suite uses static Diffie-Hellman (DH without 'E' for
+      ephemeral). This does not provide Forward Secrecy and may use weak DH parameters.
+    rationale: >
+      Non-ephemeral DH (fixed DH) shares the same private key across connections,
+      eliminating Forward Secrecy. Ephemeral variants (ECDHE, DHE) should be preferred.
+    remediation: >
+      Prefer ECDHE over DHE, and prefer both over static DH/RSA key exchange.
+    references:
+      - "NIST SP 800-52 Rev 2"
+      - "RFC 7919: Negotiated Finite Field Diffie-Hellman"
+    detection:
+      field: key_exchange_algorithm
+      condition: in
+      value: ["DH", "RSA", "STATIC_DH"]
+    evidence_requirements:
+      requires:
+        - key_exchange_algorithm
+        - server_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-007
+    title: "Anonymous Cipher Suite — No Server Authentication"
+    severity: CRITICAL
+    description: >
+      The negotiated cipher suite is anonymous (ADH/AECDH), meaning the server
+      is not authenticated. This is trivially vulnerable to man-in-the-middle attack.
+    rationale: >
+      Anonymous cipher suites explicitly remove server authentication, making any
+      connection trivially interceptable. These must never appear in production.
+    remediation: >
+      Remove all anonymous cipher suites (ADH, AECDH, aNULL) from server configuration.
+    references:
+      - "NIST SP 800-52 Rev 2"
+      - "RFC 5246 Section 7.4.6"
+    detection:
+      field: cipher_suite_name
+      condition: contains_any
+      value: ["ADH", "AECDH", "aNULL", "_anon_"]
+    evidence_requirements:
+      requires:
+        - negotiated_cipher_suite
+        - server_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-008
+    title: "Weak Ephemeral DH Parameter Size"
+    severity: MEDIUM
+    description: >
+      The observed DHE key exchange uses a Diffie-Hellman group smaller than 2048 bits,
+      making it potentially vulnerable to Logjam-style attacks.
+    rationale: >
+      NIST SP 800-57 recommends a minimum DH parameter size of 2048 bits through 2030.
+      Groups smaller than 1024 bits are considered broken.
+    remediation: >
+      Configure the server to use DH parameters of at least 2048 bits, or migrate
+      to ECDHE which uses shorter but stronger elliptic curve parameters.
+    references:
+      - "NIST SP 800-57 Part 1 Table 2"
+      - "Logjam Attack — weakdh.org"
+    detection:
+      field: dh_group_size
+      condition: less_than
+      value: 2048
+    evidence_requirements:
+      requires:
+        - dh_group_size
+        - server_key_exchange_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-009
+    title: "Weak Elliptic Curve — Non-Recommended Group"
+    severity: MEDIUM
+    description: >
+      The negotiated ECDHE key exchange uses an elliptic curve not recommended
+      by current standards (e.g., secp192r1, secp224r1, or unknown/custom curves).
+    rationale: >
+      NIST, BSI, and RFC 8422 recommend specific elliptic curves. Non-standard
+      or small curves may have weaker security properties.
+    remediation: >
+      Configure the server to use recommended curves: secp256r1 (P-256), secp384r1 (P-384),
+      secp521r1 (P-521), or X25519.
+    references:
+      - "RFC 8422: Elliptic Curve Cryptography for TLS"
+      - "NIST SP 800-186"
+      - "BSI TR-02102-2 Section 3.6"
+    detection:
+      field: supported_group
+      condition: not_in
+      value: ["secp256r1", "secp384r1", "secp521r1", "x25519", "x448", "ffdhe2048", "ffdhe3072", "ffdhe4096"]
+    evidence_requirements:
+      requires:
+        - supported_group
+        - client_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
+
+  - id: CRYPT-010
+    title: "TLS Version Downgrade — Client Offered Higher Version"
+    severity: MEDIUM
+    description: >
+      The client offered a higher TLS version in ClientHello than what was ultimately
+      negotiated by the server. This may indicate server misconfiguration or a
+      downgrade attempt.
+    rationale: >
+      Modern clients negotiate the highest mutually supported version. A significant
+      downgrade (e.g., client offers TLS 1.3, server negotiates TLS 1.1) is anomalous
+      and warrants investigation.
+    remediation: >
+      Verify that both client and server are configured to support the same minimum
+      TLS version. Investigate if the downgrade is consistent or session-specific.
+    references:
+      - "RFC 8446 Section 4.2.1 (Supported Versions extension)"
+    detection:
+      field: version_downgrade_detected
+      condition: equals
+      value: true
+    evidence_requirements:
+      requires:
+        - offered_tls_versions
+        - negotiated_tls_version
+        - client_hello_frame
+        - server_hello_frame
+    confidence_when_missing: INSUFFICIENT_EVIDENCE
