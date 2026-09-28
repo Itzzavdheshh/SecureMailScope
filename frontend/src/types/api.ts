@@ -5,14 +5,14 @@
 
 export type ProtocolType = 'SMTP' | 'IMAP' | 'POP3' | 'UNKNOWN';
 
+// Exactly matches backend StarttlsStatus enum (app/models/enums.py)
 export type StarttlsStatus =
   | 'NOT_OBSERVED'
   | 'ADVERTISED'
   | 'ATTEMPTED'
-  | 'ESTABLISHED'
+  | 'ACCEPTED'
   | 'REJECTED'
-  | 'DISABLED'
-  | 'CLEARTEXT_FALLBACK';
+  | 'ANOMALOUS';
 
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 
@@ -133,11 +133,13 @@ export interface EvidenceRead {
   session_id?: string | null;
   capture_id?: string | null;
   frame_number: number;
-  packet_timestamp?: string | null;
+  packet_timestamp?: number | string | null;
   protocol_layer: string;
   field_name: string;
   observed_value: string;
   raw_hex_snippet?: string | null;
+  hex_dump_snippet?: string | null;
+  source_reference?: string | null;
   description?: string | null;
   created_at: string;
 }
@@ -236,4 +238,91 @@ export interface RiskSummaryResponse {
   severity_distribution: Record<string, number>;
   drift_count: number;
   high_risk_session_count: number;
+}
+
+// ── Phase 10: Behavioral Analysis ─────────────────────────────────────────────
+
+export type BaselineStatus = 'NO_BASELINE' | 'PROVISIONAL' | 'ESTABLISHED' | 'TRUSTED';
+export type AnalysisMethodStatus = 'COMPLETED' | 'INSUFFICIENT_DATA' | 'NOT_APPLICABLE' | 'SKIPPED';
+export type DeviationSignificance = 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
+export type OverallBehavioralStatus = 'ANALYZED' | 'INSUFFICIENT_EVIDENCE';
+
+export interface BehavioralAnomaly {
+  feature: string;
+  baseline_value: string | null;
+  observed_value: string | null;
+  change_description: string;
+  significance: DeviationSignificance;
+  reason: string;
+  evidence_status: string;
+  method: string;
+  stat_method: string | null;
+  stat_sample_count: number | null;
+  stat_baseline_mean: number | null;
+  stat_baseline_std: number | null;
+  stat_observed_value_numeric: number | null;
+  stat_zscore: number | null;
+}
+
+export interface StatisticalRiskAnalysis {
+  method: string;
+  method_status: AnalysisMethodStatus;
+  sample_count: number;
+  baseline_mean: number | null;
+  baseline_std: number | null;
+  baseline_median: number | null;
+  baseline_iqr: number | null;
+  observed_value: number | null;
+  zscore: number | null;
+  normalized_deviation: number | null;
+  is_anomalous: boolean;
+  interpretation: string;
+}
+
+export interface IsolationForestAnalysis {
+  method_status: AnalysisMethodStatus;
+  model_name: string;
+  feature_set: string[];
+  observation_count: number;
+  min_required: number;
+  anomaly_score: number | null;
+  normalized_anomaly_score: number | null;
+  is_anomalous: boolean | null;
+  interpretation: string;
+}
+
+export interface BehavioralAnalysisRead {
+  id: string;
+  infrastructure_id: string;
+  job_id: string;
+  session_id: string | null;
+  identity_key: string;
+  baseline_status: BaselineStatus;
+  observation_count: number;
+  overall_status: OverallBehavioralStatus;
+  significant_deviation_detected: boolean;
+  deviation_summary: string;
+  anomaly_count: number;
+  anomalies: BehavioralAnomaly[];
+  risk_stat_analysis: StatisticalRiskAnalysis | null;
+  isolation_forest: IsolationForestAnalysis | null;
+  limitations: string[];
+  analyzed_at: string;
+}
+
+export interface PaginatedBehavioralResponse {
+  items: BehavioralAnalysisRead[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface JobBehavioralSummary {
+  job_id: string;
+  total_analyses: number;
+  significant_deviations: number;
+  insufficient_data: number;
+  total_anomalies: number;
+  analyses: BehavioralAnalysisRead[];
 }

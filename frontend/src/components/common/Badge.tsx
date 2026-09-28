@@ -36,18 +36,18 @@ export const RiskBandBadge: React.FC<{ band?: RiskBand | null }> = ({ band }) =>
 };
 
 export const StarttlsStateBadge: React.FC<{ state: StarttlsStatus }> = ({ state }) => {
-  // CRITICAL REQUIREMENT: NOT_OBSERVED must NOT visually become DISABLED
+  // Maps backend StarttlsStatus enum values to badge variants.
+  // Backend enum (app/models/enums.py): NOT_OBSERVED | ADVERTISED | ATTEMPTED | ACCEPTED | REJECTED | ANOMALOUS
   switch (state) {
-    case 'ESTABLISHED':
-      return <Badge variant="low">ESTABLISHED</Badge>;
+    case 'ACCEPTED':
+      return <Badge variant="low">ACCEPTED</Badge>;
     case 'ADVERTISED':
     case 'ATTEMPTED':
       return <Badge variant="medium">{state}</Badge>;
     case 'REJECTED':
-    case 'CLEARTEXT_FALLBACK':
-      return <Badge variant="critical">{state}</Badge>;
-    case 'DISABLED':
-      return <Badge variant="high">DISABLED</Badge>;
+      return <Badge variant="critical">REJECTED</Badge>;
+    case 'ANOMALOUS':
+      return <Badge variant="high">ANOMALOUS</Badge>;
     case 'NOT_OBSERVED':
     default:
       return <Badge variant="info">NOT OBSERVED</Badge>;

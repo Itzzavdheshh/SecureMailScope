@@ -12,6 +12,7 @@ import { InfrastructurePage } from './pages/InfrastructurePage';
 import { DriftPage } from './pages/DriftPage';
 import { TimelinePage } from './pages/TimelinePage';
 import { ReportsPage } from './pages/ReportsPage';
+import { BehaviorPage } from './pages/BehaviorPage';
 
 export function App() {
   return (
@@ -29,6 +30,7 @@ export function App() {
             <Route path="drifts" element={<DriftPage />} />
             <Route path="timeline" element={<TimelinePage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="behavior" element={<BehaviorPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

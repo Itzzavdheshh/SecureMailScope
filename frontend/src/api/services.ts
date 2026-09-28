@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   AnalysisJobRead,
+  BehavioralAnalysisRead,
   CaptureRead,
   CaptureUploadResponse,
   DriftEventRead,
@@ -8,6 +9,8 @@ import type {
   EvidenceRead,
   FindingRead,
   InfrastructureIdentityRead,
+  JobBehavioralSummary,
+  PaginatedBehavioralResponse,
   PaginatedResponse,
   RiskSummaryResponse,
   TimelineEventRead,
@@ -220,5 +223,32 @@ export const reportsApi = {
 
   getCaptureReportUrl: (captureId: string, format: 'json' | 'html' | 'pdf'): string => {
     return `/api/v1/captures/${captureId}/report?format=${format}`;
+  },
+};
+
+export interface BehaviorFilterParams {
+  job_id?: string;
+  infrastructure_id?: string;
+  significant_only?: boolean;
+  page?: number;
+  page_size?: number;
+}
+
+export const behaviorApi = {
+  list: async (params: BehaviorFilterParams = {}): Promise<PaginatedBehavioralResponse> => {
+    const res = await apiClient.get<PaginatedBehavioralResponse>('/behavior', {
+      params: { page: 1, page_size: 50, ...params },
+    });
+    return res.data;
+  },
+
+  get: async (analysisId: string): Promise<BehavioralAnalysisRead> => {
+    const res = await apiClient.get<BehavioralAnalysisRead>(`/behavior/${analysisId}`);
+    return res.data;
+  },
+
+  getJobSummary: async (jobId: string): Promise<JobBehavioralSummary> => {
+    const res = await apiClient.get<JobBehavioralSummary>(`/behavior/jobs/${jobId}/summary`);
+    return res.data;
   },
 };

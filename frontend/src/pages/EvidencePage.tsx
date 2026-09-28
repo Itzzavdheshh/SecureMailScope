@@ -10,6 +10,61 @@ import { FilterToolbar, type FilterOption } from '../components/common/FilterToo
 import { DataTable, type Column } from '../components/common/DataTable';
 import { InspectorPanel } from '../components/common/InspectorPanel';
 
+/**
+ * Safely format packet timestamp values (which may be numeric Unix epoch,
+ * ISO date strings, or null/undefined) for human-readable forensic display.
+ */
+export const formatPacketTimestamp = (
+  val: number | string | null | undefined,
+  short = false
+): string => {
+  if (val === null || val === undefined || val === '') return 'N/A';
+
+  try {
+    let date: Date;
+    let subseconds = '';
+
+    if (typeof val === 'number') {
+      const isSeconds = val < 1e11;
+      date = new Date(isSeconds ? val * 1000 : val);
+      const strVal = String(val);
+      if (strVal.includes('.')) {
+        subseconds = '.' + strVal.split('.')[1].slice(0, 6);
+      }
+    } else {
+      const strVal = String(val).trim();
+      const numVal = Number(strVal);
+      if (!isNaN(numVal) && strVal !== '') {
+        const isSeconds = numVal < 1e11;
+        date = new Date(isSeconds ? numVal * 1000 : numVal);
+        if (strVal.includes('.')) {
+          subseconds = '.' + strVal.split('.')[1].slice(0, 6);
+        }
+      } else {
+        date = new Date(strVal);
+      }
+    }
+
+    if (isNaN(date.getTime())) {
+      return String(val);
+    }
+
+    const iso = date.toISOString();
+    if (short) {
+      const timePart = iso.substring(11, 19);
+      const frac = subseconds || iso.substring(19, 23);
+      return `${timePart}${frac}`;
+    }
+
+    const datePart = iso.substring(0, 10);
+    const timePart = iso.substring(11, 19);
+    const frac = subseconds || iso.substring(19, 23);
+    return `${datePart} ${timePart}${frac} UTC`;
+  } catch {
+    return String(val);
+  }
+};
+
 export const EvidencePage: React.FC = () => {
   const { activeCapture } = useWorkspace();
   const [searchParams] = useSearchParams();
@@ -205,17 +260,17 @@ export const EvidencePage: React.FC = () => {
               <div className="detail-row">
                 <div className="detail-row__label">Packet Timestamp</div>
                 <div className="detail-row__value mono">
-                  {selectedEvidence.packet_timestamp || 'N/A'}
+                  {formatPacketTimestamp(selectedEvidence.packet_timestamp)}
                 </div>
               </div>
 
-              {selectedEvidence.raw_hex_snippet && (
+              {(selectedEvidence.raw_hex_snippet || selectedEvidence.hex_dump_snippet) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
                     HEX PAYLOAD SNIPPET
                   </div>
                   <pre style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', padding: '10px', background: 'var(--color-surface-inset)', borderRadius: 'var(--radius-sm)' }}>
-                    {selectedEvidence.raw_hex_snippet}
+                    {selectedEvidence.raw_hex_snippet || selectedEvidence.hex_dump_snippet}
                   </pre>
                 </div>
               )}
@@ -230,9 +285,10 @@ export const EvidencePage: React.FC = () => {
           {selectedEvidence && (
             <InspectorPanel
               title={`FRAME #${selectedEvidence.frame_number}`}
-              subtitle={`Packet Timestamp: ${selectedEvidence.packet_timestamp?.substring(11, 23) || 'N/A'}`}
+              subtitle={`Packet Timestamp: ${formatPacketTimestamp(selectedEvidence.packet_timestamp, true)}`}
               onClose={() => setSelectedEvidence(null)}
             >
+
               <div className="inspector-section">
                 <div className="inspector-section-title">FRAME METADATA</div>
                 <div className="detail-row">

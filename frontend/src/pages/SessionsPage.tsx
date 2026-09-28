@@ -292,7 +292,8 @@ export const SessionsPage: React.FC = () => {
                 <div className="detail-row">
                   <div className="detail-row__label">Certificate</div>
                   <div className="detail-row__value hash">
-                    {selectedSession.certificates?.[0]?.sha256_fingerprint || 'No certificate presented'}
+                    {selectedSession.certificates?.[0]?.sha256_fingerprint
+                      || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', fontFamily: 'var(--font-body)' }}>Open full session detail to inspect certificate</span>}
                   </div>
                 </div>
               </div>

@@ -16,6 +16,7 @@ import {
   FileSpreadsheet,
   Menu,
   X,
+  Brain,
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { reportsApi } from '../api/services';
@@ -46,6 +47,7 @@ export const AnalystLayout: React.FC = () => {
     { to: '/infrastructure', label: 'Infrastructure', icon: <Server size={16} /> },
     { to: '/drifts', label: 'Cryptographic Drift', icon: <TrendingDown size={16} /> },
     { to: '/timeline', label: 'Forensic Timeline', icon: <Clock size={16} /> },
+    { to: '/behavior', label: 'Behavioural Analysis', icon: <Brain size={16} /> },
     { to: '/reports', label: 'Reports', icon: <FileText size={16} /> },
   ];
 
