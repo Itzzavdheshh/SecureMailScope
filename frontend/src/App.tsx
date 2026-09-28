@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { WorkspaceProvider } from './context/WorkspaceContext';
-import { AnalystLayout } from './layouts/AnalystLayout';
+import { AppShell } from './layouts/AppShell';
 
 import { OverviewPage } from './pages/OverviewPage';
 import { IntakePage } from './pages/IntakePage';
@@ -18,7 +18,7 @@ export function App() {
     <WorkspaceProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<AnalystLayout />}>
+          <Route path="/" element={<AppShell />}>
             <Route index element={<OverviewPage />} />
             <Route path="intake" element={<IntakePage />} />
             <Route path="sessions" element={<SessionsPage />} />
