@@ -1,0 +1,102 @@
+# SecureMailScope — Risk Scoring Weights
+# Version: 1.0.0
+# Last updated: 2026-09-27
+#
+# FORMULA (transparent, documented here):
+#
+#   raw_score = Σ (severity_weight[finding.severity] × confidence_factor[finding.confidence])
+#
+#   normalized_score = min(100, raw_score / reference_max × 100)
+#     where reference_max = 30.0 (three fully observed CRITICAL findings)
+#
+#   severity_band is selected from the thresholds below:
+#     0–19.9 SECURE, 20–39.9 LOW, 40–59.9 MEDIUM,
+#     60–79.9 HIGH, and 80–100 CRITICAL.
+#
+# EXAMPLE:
+#   Session has:
+#     - CRYPT-001 (HIGH, HIGH confidence):       7.0 × 1.0 = 7.0
+#     - CERT-001  (HIGH, MEDIUM confidence):     7.0 × 0.9 = 6.3
+#     - STLS-003  (CRITICAL, HIGH confidence): 18.0 × 1.0 = 18.0
+#   raw_score = 31.3
+#   normalized = min(100, 31.3 / 30 × 100) = 100.0 → CRITICAL band
+#   A single CRITICAL finding scores 60.0 (HIGH band), never LOW.
+
+version: "1.0.0"
+schema: "securemailscope/rules/risk_weights/v1"
+
+# ─── Severity weights ─────────────────────────────────────────────────────────
+# These control how much each finding contributes to the raw risk score.
+# Adjust conservatively — small changes have outsized effects on normalized scores.
+
+severity_weights:
+  CRITICAL: 18.0
+  HIGH: 7.0
+  MEDIUM: 4.0
+  LOW: 1.5
+  INFO: 0.5
+
+# ─── Confidence multipliers ───────────────────────────────────────────────────
+# A finding with INSUFFICIENT_EVIDENCE contributes zero to the score.
+# This prevents uncertain analysis from inflating risk.
+
+confidence_factors:
+  HIGH: 1.0                  # Direct packet-backed observation
+  MEDIUM: 0.9                # Derived from observed facts
+  LOW: 0.7                   # Lower-confidence inference
+  INSUFFICIENT_EVIDENCE: 0.0 # No score contribution — honest about gaps
+
+# ─── Normalization ────────────────────────────────────────────────────────────
+# reference_max: the raw_score that maps to normalized 100.
+# A fully observed CRITICAL finding contributes 18.0, scoring 60.0 (HIGH).
+# Multiple independent findings can reach CRITICAL; the score remains capped.
+# Any raw_score ≥ reference_max is capped at 100.
+
+normalization:
+  reference_max: 30.0
+  cap: 100
+
+# ─── Severity bands ───────────────────────────────────────────────────────────
+severity_bands:
+  SECURE:
+    min: 0
+    max: 19.9
+    color: "#22C55E"
+    label: "SECURE"
+  LOW:
+    min: 20
+    max: 39.9
+    color: "#22C55E"           # green
+    label: "LOW"
+  MEDIUM:
+    min: 40
+    max: 59.9
+    color: "#F59E0B"           # amber
+    label: "MEDIUM"
+  HIGH:
+    min: 60
+    max: 79.9
+    color: "#EF4444"           # red (lighter)
+    label: "HIGH"
+  CRITICAL:
+    min: 80
+    max: 100
+    color: "#B91C1C"           # red (darker)
+    label: "CRITICAL"
+
+# ─── Drift anomaly bonus ──────────────────────────────────────────────────────
+# When a session is also flagged as a drift event, this bonus is added to raw_score.
+# Drift alone does not create a finding, but amplifies the overall risk.
+
+drift_bonus: 2.0
+
+# ─── Score formula documentation ─────────────────────────────────────────────
+# Stored in reports and database for full auditability.
+
+formula_description: >
+  raw_score = Σ (severity_weights[severity] × confidence_factors[confidence])
+            + drift_bonus (if drift event detected)
+  normalized_score = min(100, round(raw_score / reference_max × 100, 1))
+  severity_band = determined by severity_bands lookup on normalized_score
+
+formula_version: "risk_weights_v1.0.0"
