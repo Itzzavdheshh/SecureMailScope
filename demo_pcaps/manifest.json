@@ -1,0 +1,233 @@
+{
+  "generated_at": "2026-09-28T16:43:41.556662+00:00",
+  "total_scenarios": 10,
+  "scenarios": [
+    {
+      "filename": "01_secure_smtp.pcap",
+      "scenario_id": "scenario_01_secure_smtp",
+      "name": "Secure SMTP \u2014 TLS 1.3, AES-256-GCM, Valid Cert",
+      "description": "Demonstrates genuinely observed secure configuration with TLS 1.3, Forward Secrecy, and valid SAN certificate.",
+      "packet_count": 5,
+      "session_count": 1,
+      "expected_starttls": "ACCEPTED",
+      "expected_tls": "TLS 1.3",
+      "expected_cipher": "TLS_AES_256_GCM_SHA384",
+      "expected_findings": [
+        "CERT-007"
+      ],
+      "actual_findings": [
+        "CERT-007"
+      ],
+      "verified_risk_score": 13.3,
+      "expected_drift": "Establishes initial secure baseline profile.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "02_deprecated_tls.pcap",
+      "scenario_id": "scenario_02_deprecated_tls10",
+      "name": "Deprecated TLS Version \u2014 TLS 1.0 Negotiated",
+      "description": "Demonstrates deterministic security rule evaluation for legacy/deprecated TLS versions.",
+      "packet_count": 5,
+      "session_count": 1,
+      "expected_starttls": "ACCEPTED",
+      "expected_tls": "TLS 1.0",
+      "expected_cipher": "TLS_RSA_WITH_AES_128_CBC_SHA",
+      "expected_findings": [
+        "CRYPT-001",
+        "CRYPT-004",
+        "CERT-005"
+      ],
+      "actual_findings": [
+        "CERT-005",
+        "CERT-006",
+        "CRYPT-001",
+        "CRYPT-004"
+      ],
+      "verified_risk_score": 65.0,
+      "expected_drift": "Establishes deprecated TLS baseline.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "03_weak_cipher.pcap",
+      "scenario_id": "scenario_03_weak_cipher_rc4",
+      "name": "Weak Cipher Suite \u2014 RC4 Negotiated",
+      "description": "Demonstrates rule engine identification of broken/prohibited stream ciphers.",
+      "packet_count": 5,
+      "session_count": 1,
+      "expected_starttls": "ACCEPTED",
+      "expected_tls": "TLS 1.2",
+      "expected_cipher": "TLS_RSA_WITH_RC4_128_SHA",
+      "expected_findings": [
+        "CRYPT-005",
+        "CRYPT-004",
+        "CERT-005"
+      ],
+      "actual_findings": [
+        "CERT-005",
+        "CERT-006",
+        "CRYPT-004",
+        "CRYPT-005"
+      ],
+      "verified_risk_score": 75.0,
+      "expected_drift": "Establishes weak cipher baseline.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "04_expired_certificate.pcap",
+      "scenario_id": "scenario_05_expired_cert",
+      "name": "Certificate Expired at Capture Time",
+      "description": "Demonstrates historical certificate validity verification relative to capture timestamp.",
+      "packet_count": 5,
+      "session_count": 1,
+      "expected_starttls": "ACCEPTED",
+      "expected_tls": "TLS 1.2",
+      "expected_cipher": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+      "expected_findings": [
+        "CERT-001",
+        "CERT-005"
+      ],
+      "actual_findings": [
+        "CERT-001",
+        "CERT-002",
+        "CERT-005",
+        "CERT-006"
+      ],
+      "verified_risk_score": 55.0,
+      "expected_drift": "Establishes expired cert baseline.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "05_starttls_rejected.pcap",
+      "scenario_id": "scenario_07_starttls_rejected",
+      "name": "STARTTLS Attempted but Rejected by Server",
+      "description": "Demonstrates explicit STARTTLS rejection detection (454 response) and downgrade tracking.",
+      "packet_count": 3,
+      "session_count": 1,
+      "expected_starttls": "REJECTED",
+      "expected_tls": "N/A",
+      "expected_cipher": "N/A",
+      "expected_findings": [
+        "STLS-002"
+      ],
+      "actual_findings": [
+        "STLS-002",
+        "CRYPT-010"
+      ],
+      "verified_risk_score": 46.7,
+      "expected_drift": "Establishes rejected STARTTLS baseline.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "06_truncated_tls.pcap",
+      "scenario_id": "scenario_08_truncated_handshake",
+      "name": "Incomplete / Truncated Evidence",
+      "description": "Demonstrates forensic uncertainty handling when ClientHello is not followed by ServerHello.",
+      "packet_count": 4,
+      "session_count": 1,
+      "expected_starttls": "ACCEPTED",
+      "expected_tls": "N/A",
+      "expected_cipher": "N/A",
+      "expected_findings": [],
+      "actual_findings": [],
+      "verified_risk_score": 0.0,
+      "expected_drift": "Incomplete baseline state.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "07_multi_session_smtp.pcap",
+      "scenario_id": "scenario_09_multisession_smtp",
+      "name": "Multi-Session SMTP (3 Sessions in 1 PCAP)",
+      "description": "Demonstrates multi-flow PCAP processing, independent session rules, and aggregated job risk.",
+      "packet_count": 13,
+      "session_count": 3,
+      "expected_starttls": "MIXED (2 ACCEPTED, 1 REJECTED)",
+      "expected_tls": "MIXED (TLS 1.3, TLS 1.0, None)",
+      "expected_cipher": "MIXED",
+      "expected_findings": [
+        "CRYPT-001",
+        "CRYPT-004",
+        "CERT-005",
+        "STLS-002"
+      ],
+      "actual_findings": [
+        "CERT-005",
+        "CERT-005",
+        "CERT-006",
+        "CRYPT-001",
+        "CRYPT-004",
+        "STLS-002",
+        "CRYPT-010"
+      ],
+      "verified_risk_score": 58.0,
+      "expected_drift": "Establishes baselines for multiple hosts.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "08_baseline_secure.pcap",
+      "scenario_id": "scenario_10a_baseline",
+      "name": "Baseline Capture \u2014 TLS 1.3 Server (Pair 1/2)",
+      "description": "First half of drift scenario pair: establishes initial secure baseline profile for 198.51.100.30.",
+      "packet_count": 5,
+      "session_count": 1,
+      "expected_starttls": "ACCEPTED",
+      "expected_tls": "TLS 1.3",
+      "expected_cipher": "TLS_AES_256_GCM_SHA384",
+      "expected_findings": [
+        "CERT-005"
+      ],
+      "actual_findings": [
+        "CERT-005",
+        "CERT-006"
+      ],
+      "verified_risk_score": 18.3,
+      "expected_drift": "Establishes baseline profile for 198.51.100.30.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "09_baseline_downgrade.pcap",
+      "scenario_id": "scenario_10b_drift",
+      "name": "Drift Capture \u2014 Downgraded to TLS 1.0 (Pair 2/2)",
+      "description": "Second half of drift scenario pair: detects TLS_VERSION_DOWNGRADED drift against established baseline.",
+      "packet_count": 5,
+      "session_count": 1,
+      "expected_starttls": "ACCEPTED",
+      "expected_tls": "TLS 1.0",
+      "expected_cipher": "TLS_RSA_WITH_AES_128_CBC_SHA",
+      "expected_findings": [
+        "CRYPT-001",
+        "CRYPT-004",
+        "CERT-005"
+      ],
+      "actual_findings": [
+        "CERT-005",
+        "CERT-006",
+        "CRYPT-001",
+        "CRYPT-004"
+      ],
+      "verified_risk_score": 65.0,
+      "expected_drift": "Detects DriftEvent: TLS_VERSION_DOWNGRADED against baseline.",
+      "verified_drift_events": []
+    },
+    {
+      "filename": "10_certificate_rotation.pcap",
+      "scenario_id": "scenario_11b_cert_rotation_new",
+      "name": "Cert Rotation New \u2014 Cert B 3072b (Pair 2/2)",
+      "description": "Second half of certificate rotation pair: verifies identity stability (same identity ID) during cert change.",
+      "packet_count": 5,
+      "session_count": 1,
+      "expected_starttls": "ACCEPTED",
+      "expected_tls": "TLS 1.2",
+      "expected_cipher": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+      "expected_findings": [
+        "CERT-005"
+      ],
+      "actual_findings": [
+        "CERT-005",
+        "CERT-006"
+      ],
+      "verified_risk_score": 18.3,
+      "expected_drift": "Maintains stable host identity while registering CERTIFICATE_CHANGED profile update.",
+      "verified_drift_events": []
+    }
+  ]
+}

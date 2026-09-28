@@ -1,0 +1,241 @@
+"""
+SecureMailScope — Forensic Test Laboratory Scenario Registry & Metadata
+Phase 9 — Machine-readable scenario registry and dispatcher.
+"""
+
+from typing import Dict, Any, Callable, List, Optional
+from dataclasses import dataclass, field
+
+from scripts.pcap_lab.generators import (
+    generate_scenario_a,
+    generate_scenario_b,
+    generate_scenario_c,
+    generate_scenario_d,
+    generate_scenario_e,
+    generate_scenario_f,
+    generate_scenario_g,
+    generate_scenario_h,
+    generate_scenario_i,
+    generate_scenario_j1,
+    generate_scenario_j2,
+    generate_scenario_k1,
+    generate_scenario_k2,
+)
+
+
+@dataclass
+class LabScenario:
+    scenario_id: str
+    name: str
+    description: str
+    intended_protocol: str
+    expected_session_count: int
+    expected_starttls_state: str
+    expected_tls_version: Optional[str]
+    expected_cipher: Optional[str]
+    expected_certificate_state: str
+    expected_rule_ids: List[str]
+    expected_risk_characteristics: str
+    expected_drift_behavior: str
+    generator_fn: Callable[[], bytes]
+    limitations: Optional[str] = None
+
+
+LAB_SCENARIOS: Dict[int, LabScenario] = {
+    1: LabScenario(
+        scenario_id="scenario_01_secure_smtp",
+        name="Secure SMTP — TLS 1.3, AES-256-GCM, Valid Cert",
+        description="Demonstrates genuinely observed secure configuration with TLS 1.3, Forward Secrecy, and valid SAN certificate.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.3",
+        expected_cipher="TLS_AES_256_GCM_SHA384",
+        expected_certificate_state="Valid X.509 with SAN",
+        expected_rule_ids=["CERT-007"],  # Incomplete chain: only end-entity cert embedded in PCAP
+        expected_risk_characteristics="Low Risk Score (~13.3) — no HIGH/CRITICAL findings; CERT-007 correctly fires for single-cert chain",
+        expected_drift_behavior="Establishes initial secure baseline profile.",
+        generator_fn=generate_scenario_a,
+    ),
+
+    2: LabScenario(
+        scenario_id="scenario_02_deprecated_tls10",
+        name="Deprecated TLS Version — TLS 1.0 Negotiated",
+        description="Demonstrates deterministic security rule evaluation for legacy/deprecated TLS versions.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.0",
+        expected_cipher="TLS_RSA_WITH_AES_128_CBC_SHA",
+        expected_certificate_state="Self-Signed Cert Present",
+        expected_rule_ids=["CRYPT-001", "CRYPT-004", "CERT-005"],
+        expected_risk_characteristics="High / Critical Risk Score (> 70.0)",
+        expected_drift_behavior="Establishes deprecated TLS baseline.",
+        generator_fn=generate_scenario_b,
+    ),
+    3: LabScenario(
+        scenario_id="scenario_03_weak_cipher_rc4",
+        name="Weak Cipher Suite — RC4 Negotiated",
+        description="Demonstrates rule engine identification of broken/prohibited stream ciphers.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.2",
+        expected_cipher="TLS_RSA_WITH_RC4_128_SHA",
+        expected_certificate_state="Self-Signed Cert Present",
+        expected_rule_ids=["CRYPT-005", "CRYPT-004", "CERT-005"],
+        expected_risk_characteristics="Critical Risk Score (100.0)",
+        expected_drift_behavior="Establishes weak cipher baseline.",
+        generator_fn=generate_scenario_c,
+    ),
+    4: LabScenario(
+        scenario_id="scenario_04_self_signed_cert",
+        name="Self-Signed Certificate",
+        description="Demonstrates X.509 certificate trust verification for untrusted self-signed subjects.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.2",
+        expected_cipher="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        expected_certificate_state="Self-Signed Certificate",
+        expected_rule_ids=["CERT-005"],
+        expected_risk_characteristics="Medium Risk Score (~40.0)",
+        expected_drift_behavior="Establishes self-signed baseline.",
+        generator_fn=generate_scenario_d,
+    ),
+    5: LabScenario(
+        scenario_id="scenario_05_expired_cert",
+        name="Certificate Expired at Capture Time",
+        description="Demonstrates historical certificate validity verification relative to capture timestamp.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.2",
+        expected_cipher="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        expected_certificate_state="Expired Certificate at Capture Time",
+        expected_rule_ids=["CERT-001", "CERT-005"],
+        expected_risk_characteristics="High Risk Score (> 60.0)",
+        expected_drift_behavior="Establishes expired cert baseline.",
+        generator_fn=generate_scenario_e,
+    ),
+    6: LabScenario(
+        scenario_id="scenario_06_no_forward_secrecy",
+        name="No Forward Secrecy — Static RSA Key Exchange",
+        description="Demonstrates posture assessment beyond TLS version by flagging static RSA key exchange.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.2",
+        expected_cipher="TLS_RSA_WITH_AES_128_CBC_SHA",
+        expected_certificate_state="Self-Signed Cert Present",
+        expected_rule_ids=["CRYPT-004", "CERT-005"],
+        expected_risk_characteristics="High Risk Score (> 60.0)",
+        expected_drift_behavior="Establishes static RSA baseline.",
+        generator_fn=generate_scenario_f,
+    ),
+    7: LabScenario(
+        scenario_id="scenario_07_starttls_rejected",
+        name="STARTTLS Attempted but Rejected by Server",
+        description="Demonstrates explicit STARTTLS rejection detection (454 response) and downgrade tracking.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="REJECTED",
+        expected_tls_version=None,
+        expected_cipher=None,
+        expected_certificate_state="Not Observed (Plaintext)",
+        expected_rule_ids=["STLS-002"],
+        expected_risk_characteristics="Critical Risk Score (100.0)",
+        expected_drift_behavior="Establishes rejected STARTTLS baseline.",
+        generator_fn=generate_scenario_g,
+    ),
+    8: LabScenario(
+        scenario_id="scenario_08_truncated_handshake",
+        name="Incomplete / Truncated Evidence",
+        description="Demonstrates forensic uncertainty handling when ClientHello is not followed by ServerHello.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version=None,
+        expected_cipher=None,
+        expected_certificate_state="Not Observed (Truncated Handshake)",
+        expected_rule_ids=[],
+        expected_risk_characteristics="Insufficient Evidence / 0.0 Risk",
+        expected_drift_behavior="Incomplete baseline state.",
+        generator_fn=generate_scenario_h,
+    ),
+    9: LabScenario(
+        scenario_id="scenario_09_multisession_smtp",
+        name="Multi-Session SMTP (3 Sessions in 1 PCAP)",
+        description="Demonstrates multi-flow PCAP processing, independent session rules, and aggregated job risk.",
+        intended_protocol="SMTP",
+        expected_session_count=3,
+        expected_starttls_state="MIXED (2 ACCEPTED, 1 REJECTED)",
+        expected_tls_version="MIXED (TLS 1.3, TLS 1.0, None)",
+        expected_cipher="MIXED",
+        expected_certificate_state="Multiple Certificates",
+        expected_rule_ids=["CRYPT-001", "CRYPT-004", "CERT-005", "STLS-002"],
+        expected_risk_characteristics="Critical Risk Score (100.0)",
+        expected_drift_behavior="Establishes baselines for multiple hosts.",
+        generator_fn=generate_scenario_i,
+    ),
+    10: LabScenario(
+        scenario_id="scenario_10a_baseline",
+        name="Baseline Capture — TLS 1.3 Server (Pair 1/2)",
+        description="First half of drift scenario pair: establishes initial secure baseline profile for 198.51.100.30.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.3",
+        expected_cipher="TLS_AES_256_GCM_SHA384",
+        expected_certificate_state="Self-Signed Cert Present",
+        expected_rule_ids=["CERT-005"],
+        expected_risk_characteristics="Medium Risk Score (~40.0)",
+        expected_drift_behavior="Establishes baseline profile for 198.51.100.30.",
+        generator_fn=generate_scenario_j1,
+    ),
+    11: LabScenario(
+        scenario_id="scenario_10b_drift",
+        name="Drift Capture — Downgraded to TLS 1.0 (Pair 2/2)",
+        description="Second half of drift scenario pair: detects TLS_VERSION_DOWNGRADED drift against established baseline.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.0",
+        expected_cipher="TLS_RSA_WITH_AES_128_CBC_SHA",
+        expected_certificate_state="Self-Signed Cert Present",
+        expected_rule_ids=["CRYPT-001", "CRYPT-004", "CERT-005"],
+        expected_risk_characteristics="High Risk Score (> 70.0)",
+        expected_drift_behavior="Detects DriftEvent: TLS_VERSION_DOWNGRADED against baseline.",
+        generator_fn=generate_scenario_j2,
+    ),
+    12: LabScenario(
+        scenario_id="scenario_11a_cert_rotation_initial",
+        name="Cert Rotation Initial — Cert A 2048b (Pair 1/2)",
+        description="First half of certificate rotation pair: establishes baseline profile with 2048-bit RSA Certificate A.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.2",
+        expected_cipher="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        expected_certificate_state="Cert A (2048-bit RSA)",
+        expected_rule_ids=["CERT-005"],
+        expected_risk_characteristics="Medium Risk Score (~40.0)",
+        expected_drift_behavior="Establishes baseline profile with Cert A.",
+        generator_fn=generate_scenario_k1,
+    ),
+    13: LabScenario(
+        scenario_id="scenario_11b_cert_rotation_new",
+        name="Cert Rotation New — Cert B 3072b (Pair 2/2)",
+        description="Second half of certificate rotation pair: verifies identity stability (same identity ID) during cert change.",
+        intended_protocol="SMTP",
+        expected_session_count=1,
+        expected_starttls_state="ACCEPTED",
+        expected_tls_version="TLS 1.2",
+        expected_cipher="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        expected_certificate_state="Cert B (3072-bit RSA)",
+        expected_rule_ids=["CERT-005"],
+        expected_risk_characteristics="Medium Risk Score (~40.0)",
+        expected_drift_behavior="Maintains stable host identity while registering CERTIFICATE_CHANGED profile update.",
+        generator_fn=generate_scenario_k2,
+    ),
+}
