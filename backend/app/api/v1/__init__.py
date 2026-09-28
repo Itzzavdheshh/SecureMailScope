@@ -15,6 +15,7 @@ from app.api.v1.drifts import router as drifts_router
 from app.api.v1.timeline import router as timeline_router
 from app.api.v1.risk import router as risk_router
 from app.api.v1.reports import router as reports_router
+from app.api.v1.behavior import router as behavior_router
 
 v1_router = APIRouter(prefix="/v1")
 
@@ -28,3 +29,4 @@ v1_router.include_router(drifts_router, prefix="/drifts", tags=["v1-drifts"])
 v1_router.include_router(timeline_router, tags=["v1-timeline"])
 v1_router.include_router(risk_router, tags=["v1-risk"])
 v1_router.include_router(reports_router, tags=["v1-reports"])
+v1_router.include_router(behavior_router, prefix="/behavior", tags=["v1-behavior"])

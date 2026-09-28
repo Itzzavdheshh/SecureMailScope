@@ -26,6 +26,7 @@ from app.models import (
     DriftEvent,
     TimelineEvent,
     RiskBand,
+    BehavioralAnalysis,
 )
 
 # ReportLab imports for PDF generation
@@ -100,6 +101,15 @@ async def build_report_data_graph(db: AsyncSession, job_id: str) -> Optional[Dic
     )
     infra_res = await db.execute(infra_stmt)
     infrastructure = list(infra_res.scalars().all())
+
+    # Phase 10: Behavioral analyses for this job
+    behav_stmt = (
+        select(BehavioralAnalysis)
+        .where(BehavioralAnalysis.job_id == job.id)
+        .order_by(BehavioralAnalysis.analyzed_at.asc())
+    )
+    behav_res = await db.execute(behav_stmt)
+    behavioral_analyses = list(behav_res.scalars().all())
 
     sev_dist: Dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
     for f in findings:
@@ -237,6 +247,31 @@ async def build_report_data_graph(db: AsyncSession, job_id: str) -> Optional[Dic
             }
             for t in timeline
         ],
+        "behavioral_analysis": {
+            "total_analyses": len(behavioral_analyses),
+            "significant_deviations": sum(1 for b in behavioral_analyses if b.significant_deviation_detected),
+            "insufficient_data": sum(
+                1 for b in behavioral_analyses
+                if (b.overall_status.value if hasattr(b.overall_status, "value") else str(b.overall_status))
+                == "INSUFFICIENT_EVIDENCE"
+            ),
+            "total_anomalies": sum(b.anomaly_count for b in behavioral_analyses),
+            "results": [
+                {
+                    "id": b.id,
+                    "session_id": b.session_id,
+                    "identity_key": b.identity_key,
+                    "baseline_status": b.baseline_status,
+                    "observation_count": b.observation_count,
+                    "overall_status": b.overall_status.value if hasattr(b.overall_status, "value") else str(b.overall_status),
+                    "significant_deviation_detected": b.significant_deviation_detected,
+                    "deviation_summary": b.deviation_summary,
+                    "anomaly_count": b.anomaly_count,
+                    "analyzed_at": b.analyzed_at.isoformat() if b.analyzed_at else None,
+                }
+                for b in behavioral_analyses
+            ],
+        },
         "limitations": limitations,
     }
 

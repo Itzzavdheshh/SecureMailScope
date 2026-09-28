@@ -22,6 +22,7 @@ from app.models.certificate import Certificate, CertificateChain
 from app.models.finding import Finding, Evidence
 from app.models.infrastructure import InfrastructureIdentity, DriftEvent
 from app.models.timeline import TimelineEvent
+from app.models.behavioral import BehavioralAnalysis
 
 __all__ = [
     "Base",
@@ -46,4 +47,5 @@ __all__ = [
     "InfrastructureIdentity",
     "DriftEvent",
     "TimelineEvent",
+    "BehavioralAnalysis",
 ]

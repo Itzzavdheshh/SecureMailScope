@@ -37,6 +37,8 @@ from app.analyzers.identity import construct_identity_key, build_cryptographic_p
 from app.analyzers.baseline import global_baseline_store, BaselineStatus
 from app.analyzers.drift_detector import compare_profiles_for_drift
 from app.analyzers.timeline_builder import build_timeline_events_for_session
+from app.behavioral.engine import BehavioralAnalysisEngine
+from app.models.behavioral import BehavioralAnalysis
 
 
 from app.analyzers.pcap_reader import stream_pcap_frames, PacketRecord
@@ -368,6 +370,56 @@ async def run_pipeline(
 
             # Update Baseline store
             global_baseline_store.record_profile(ident_key, current_profile, min_established_count=3)
+
+            # Step 13: Phase 10 — Behavioural Deviation Analysis
+            # Run AFTER baseline is updated so the current observation is part of the store.
+            # Analysis always runs; the engine returns INSUFFICIENT_DATA explicitly when needed.
+            post_update_bl = global_baseline_store.get_baseline(ident_key)
+            if post_update_bl is not None:
+                try:
+                    behavioral_engine = BehavioralAnalysisEngine()
+                    beh_result = behavioral_engine.analyze(
+                        infrastructure_id=infra.id,
+                        identity_key=ident_key,
+                        job_id=job.id,
+                        session_id=email_sess.id,
+                        current_profile=current_profile,
+                        baseline=post_update_bl,
+                        current_risk_score=sess_score,
+                    )
+                    beh_record = BehavioralAnalysis(
+                        infrastructure_id=infra.id,
+                        job_id=job.id,
+                        session_id=email_sess.id,
+                        identity_key=ident_key,
+                        baseline_status=beh_result.baseline_status.value,
+                        observation_count=beh_result.observation_count,
+                        overall_status=beh_result.overall_status,
+                        significant_deviation_detected=beh_result.significant_deviation_detected,
+                        deviation_summary=beh_result.deviation_summary,
+                        anomaly_count=len(beh_result.anomalies),
+                        anomalies_json=json.dumps([a.to_dict() for a in beh_result.anomalies]),
+                        risk_stat_json=json.dumps(beh_result.risk_stat_analysis.to_dict()) if beh_result.risk_stat_analysis else None,
+                        isolation_forest_json=json.dumps(beh_result.isolation_forest.to_dict()) if beh_result.isolation_forest else None,
+                        limitations_json=json.dumps(beh_result.limitations),
+                    )
+                    db.add(beh_record)
+                    log.info(
+                        "behavioral_analysis_completed",
+                        job_id=job.id,
+                        session_id=email_sess.id,
+                        significant_deviation=beh_result.significant_deviation_detected,
+                        anomaly_count=len(beh_result.anomalies),
+                        baseline_status=beh_result.baseline_status.value,
+                    )
+                except Exception as beh_exc:
+                    # Behavioral analysis failure must NEVER crash the pipeline.
+                    log.warning(
+                        "behavioral_analysis_skipped",
+                        job_id=job.id,
+                        session_id=email_sess.id,
+                        reason=str(beh_exc),
+                    )
 
             # Build and persist TimelineEvent records
             tm_events = build_timeline_events_for_session(
