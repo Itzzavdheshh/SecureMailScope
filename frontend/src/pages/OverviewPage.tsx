@@ -6,6 +6,8 @@ import {
   TrendingDown,
   ArrowRight,
   CheckCircle2,
+  AlertTriangle,
+  Circle,
   Activity,
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -80,24 +82,27 @@ export const OverviewPage: React.FC = () => {
     );
   }
 
+  const hasSessions = (riskData?.total_sessions || 0) > 0;
+
   const metrics = [
     { label: 'Total Sessions', value: riskData?.total_sessions ?? 0 },
     {
       label: 'Security Findings',
       value: riskData?.total_findings ?? 0,
-      highlight: (riskData?.total_findings || 0) > 0 ? ('warning' as const) : ('secure' as const),
+      highlight: (riskData?.total_findings || 0) > 0 ? ('warning' as const) : hasSessions ? ('secure' as const) : ('info' as const),
     },
     { label: 'High-Risk Sessions', value: riskData?.high_risk_session_count ?? 0 },
     { label: 'Cryptographic Drifts', value: riskData?.drift_count ?? 0 },
     {
       label: 'Overall Risk Score',
       value: `${(riskData?.overall_risk_score || 0).toFixed(1)} / 100`,
-      highlight:
-        (riskData?.overall_risk_score || 0) >= 60
-          ? ('critical' as const)
-          : (riskData?.overall_risk_score || 0) >= 40
-          ? ('warning' as const)
-          : ('secure' as const),
+      highlight: !hasSessions
+        ? ('info' as const)
+        : (riskData?.overall_risk_score || 0) >= 60
+        ? ('critical' as const)
+        : (riskData?.overall_risk_score || 0) >= 40
+        ? ('warning' as const)
+        : ('secure' as const),
     },
   ];
 
@@ -114,7 +119,11 @@ export const OverviewPage: React.FC = () => {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Cryptographic Security Posture</span>
-              <RiskBandBadge band={riskData?.risk_band} />
+              {hasSessions ? (
+                <RiskBandBadge band={riskData?.risk_band} />
+              ) : (
+                <Badge variant="neutral">INSUFFICIENT EVIDENCE</Badge>
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '8px 0' }}>
@@ -124,18 +133,20 @@ export const OverviewPage: React.FC = () => {
                   height: '90px',
                   borderRadius: '50%',
                   border: '6px solid var(--color-blue-100)',
-                  borderTopColor:
-                    (riskData?.overall_risk_score || 0) >= 60
-                      ? 'var(--color-critical)'
-                      : (riskData?.overall_risk_score || 0) >= 40
-                      ? 'var(--color-warning)'
-                      : 'var(--color-success)',
+                  borderTopColor: !hasSessions
+                    ? 'var(--color-border-strong)'
+                    : (riskData?.overall_risk_score || 0) >= 60
+                    ? 'var(--color-critical)'
+                    : (riskData?.overall_risk_score || 0) >= 40
+                    ? 'var(--color-warning)'
+                    : 'var(--color-success)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '20px',
                   fontWeight: 700,
                   fontFamily: 'var(--font-mono)',
+                  color: !hasSessions ? 'var(--color-text-muted)' : 'inherit',
                 }}
               >
                 {(riskData?.overall_risk_score || 0).toFixed(0)}
@@ -143,7 +154,9 @@ export const OverviewPage: React.FC = () => {
 
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
-                  {riskData?.risk_band === 'CRITICAL'
+                  {!hasSessions
+                    ? 'INSUFFICIENT EVIDENCE'
+                    : riskData?.risk_band === 'CRITICAL'
                     ? 'Critical Cryptographic Risk Observed'
                     : riskData?.risk_band === 'HIGH'
                     ? 'High Cryptographic Risk Detected'
@@ -152,10 +165,9 @@ export const OverviewPage: React.FC = () => {
                     : 'Secure Cryptographic Posture Verified'}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-                  Capture SHA-256:{' '}
-                  <span className="hash" style={{ fontSize: '11px' }}>
-                    {activeCapture?.sha256_hash}
-                  </span>
+                  {!hasSessions
+                    ? 'No security-relevant mail observations available in capture'
+                    : `Capture SHA-256: ${activeCapture?.sha256_hash}`}
                 </div>
               </div>
             </div>
@@ -179,39 +191,63 @@ export const OverviewPage: React.FC = () => {
                 <tr>
                   <td style={{ fontWeight: 600 }}>TLS Handshake</td>
                   <td>
-                    <Badge variant="low">TLS 1.2 / 1.3</Badge>
+                    {hasSessions ? (
+                      <Badge variant="low">OBSERVED</Badge>
+                    ) : (
+                      <Badge variant="neutral">NOT OBSERVED</Badge>
+                    )}
                   </td>
                   <td style={{ color: 'var(--color-text-secondary)' }}>
-                    Reconstructed protocol negotiation across mail streams
+                    {hasSessions
+                      ? 'Reconstructed protocol negotiation across mail streams'
+                      : 'No TLS handshakes observed in capture'}
                   </td>
                 </tr>
                 <tr>
-                  <td style={{ fontWeight: 600 }}>STARTTLS Enforcement</td>
+                  <td style={{ fontWeight: 600 }}>STARTTLS State</td>
                   <td>
-                    <Badge variant="info">ENFORCED</Badge>
+                    {hasSessions ? (
+                      <Badge variant="info">ANALYZED</Badge>
+                    ) : (
+                      <Badge variant="neutral">INSUFFICIENT EVIDENCE</Badge>
+                    )}
                   </td>
                   <td style={{ color: 'var(--color-text-secondary)' }}>
-                    Analyzed explicit plaintext to TLS upgrade commands
+                    {hasSessions
+                      ? 'Analyzed explicit plaintext to TLS upgrade commands'
+                      : 'No STARTTLS commands observed'}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 600 }}>X.509 Certificates</td>
                   <td>
-                    <Badge variant="low">VALIDATED</Badge>
+                    {hasSessions ? (
+                      <Badge variant="low">ANALYZED</Badge>
+                    ) : (
+                      <Badge variant="neutral">NOT OBSERVED</Badge>
+                    )}
                   </td>
                   <td style={{ color: 'var(--color-text-secondary)' }}>
-                    Extracted public keys, issuers, and expiration dates
+                    {hasSessions
+                      ? 'Extracted public keys, issuers, and expiration dates'
+                      : 'No certificates presented'}
                   </td>
                 </tr>
                 <tr>
                   <td style={{ fontWeight: 600 }}>Policy Drift</td>
                   <td>
-                    <Badge variant={(riskData?.drift_count || 0) > 0 ? 'medium' : 'low'}>
-                      {(riskData?.drift_count || 0) > 0 ? 'DRIFT OBSERVED' : 'NO DRIFT'}
-                    </Badge>
+                    {!hasSessions ? (
+                      <Badge variant="neutral">NOT ASSESSED</Badge>
+                    ) : (
+                      <Badge variant={(riskData?.drift_count || 0) > 0 ? 'medium' : 'low'}>
+                        {(riskData?.drift_count || 0) > 0 ? 'DRIFT OBSERVED' : 'NO DRIFT'}
+                      </Badge>
+                    )}
                   </td>
                   <td style={{ color: 'var(--color-text-secondary)' }}>
-                    {(riskData?.drift_count || 0) > 0
+                    {!hasSessions
+                      ? 'Insufficient baseline evidence'
+                      : (riskData?.drift_count || 0) > 0
                       ? `${riskData?.drift_count} baseline profile deviations detected`
                       : 'No baseline profile deviations detected'}
                   </td>
@@ -236,19 +272,38 @@ export const OverviewPage: React.FC = () => {
               </div>
               <div className="pipeline-step completed">
                 <CheckCircle2 size={16} color="var(--color-success)" />
-                <span>2. TCP Session & Stream Assembly</span>
+                <span>2. TCP Session & Stream Processing</span>
               </div>
-              <div className="pipeline-step completed">
-                <CheckCircle2 size={16} color="var(--color-success)" />
-                <span>3. Mail Protocol Identification (SMTP / IMAP / POP3)</span>
+              <div className={`pipeline-step ${hasSessions ? 'completed' : 'warning'}`}>
+                {hasSessions ? (
+                  <CheckCircle2 size={16} color="var(--color-success)" />
+                ) : (
+                  <AlertTriangle size={16} color="var(--color-warning)" />
+                )}
+                <span>
+                  3. Mail Protocol Identification —{' '}
+                  {hasSessions ? `${riskData?.total_sessions} sessions identified` : 'No mail session reconstructed'}
+                </span>
               </div>
-              <div className="pipeline-step completed">
-                <CheckCircle2 size={16} color="var(--color-success)" />
-                <span>4. TLS Handshake & X.509 Certificate Parsing</span>
+              <div className={`pipeline-step ${hasSessions ? 'completed' : 'not-observed'}`}>
+                {hasSessions ? (
+                  <CheckCircle2 size={16} color="var(--color-success)" />
+                ) : (
+                  <Circle size={16} color="var(--color-text-muted)" />
+                )}
+                <span>
+                  4. TLS & X.509 Handshake Analysis — {hasSessions ? 'Extracted' : 'Not observed'}
+                </span>
               </div>
-              <div className="pipeline-step completed">
-                <CheckCircle2 size={16} color="var(--color-success)" />
-                <span>5. Rule Engine & Baseline Verification</span>
+              <div className={`pipeline-step ${hasSessions ? 'completed' : 'not-observed'}`}>
+                {hasSessions ? (
+                  <CheckCircle2 size={16} color="var(--color-success)" />
+                ) : (
+                  <Circle size={16} color="var(--color-text-muted)" />
+                )}
+                <span>
+                  5. Rule Evaluation & Baseline — {hasSessions ? `${riskData?.total_findings} findings` : 'No applicable security observations'}
+                </span>
               </div>
             </div>
           </div>
@@ -264,7 +319,9 @@ export const OverviewPage: React.FC = () => {
 
             {recentFindings.length === 0 ? (
               <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', padding: '12px 0' }}>
-                No security findings observed for this capture.
+                {!hasSessions
+                  ? 'No mail sessions were reconstructed for rule evaluation.'
+                  : 'No security rule violations observed for this capture.'}
               </div>
             ) : (
               <table className="dense-table">
@@ -306,7 +363,7 @@ export const OverviewPage: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Layers size={16} />
-              <span>Sessions ({riskData?.total_sessions})</span>
+              <span>Sessions ({riskData?.total_sessions ?? 0})</span>
             </div>
             <ArrowRight size={14} />
           </Link>
@@ -318,7 +375,7 @@ export const OverviewPage: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <ShieldAlert size={16} />
-              <span>Findings ({riskData?.total_findings})</span>
+              <span>Findings ({riskData?.total_findings ?? 0})</span>
             </div>
             <ArrowRight size={14} />
           </Link>
@@ -342,7 +399,7 @@ export const OverviewPage: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <TrendingDown size={16} />
-              <span>Drift ({riskData?.drift_count})</span>
+              <span>Drift ({riskData?.drift_count ?? 0})</span>
             </div>
             <ArrowRight size={14} />
           </Link>
@@ -351,3 +408,4 @@ export const OverviewPage: React.FC = () => {
     </div>
   );
 };
+
