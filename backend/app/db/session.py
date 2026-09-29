@@ -70,6 +70,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+from sqlalchemy import inspect, text
+
 async def init_db() -> None:
     """Initialize database tables (used for testing or cold start)."""
     # Import all models to ensure metadata registration
@@ -77,3 +79,19 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        def _migrate(sync_conn):
+            inspector = inspect(sync_conn)
+            if "infrastructure_identities" in inspector.get_table_names():
+                columns = [c["name"] for c in inspector.get_columns("infrastructure_identities")]
+                if "port" not in columns:
+                    sync_conn.execute(text("ALTER TABLE infrastructure_identities ADD COLUMN port INTEGER"))
+                if "protocol" not in columns:
+                    sync_conn.execute(text("ALTER TABLE infrastructure_identities ADD COLUMN protocol VARCHAR(20)"))
+                if "identity_key" not in columns:
+                    sync_conn.execute(text("ALTER TABLE infrastructure_identities ADD COLUMN identity_key VARCHAR(64)"))
+                if "active_profile_json" not in columns:
+                    sync_conn.execute(text("ALTER TABLE infrastructure_identities ADD COLUMN active_profile_json TEXT"))
+
+        await conn.run_sync(_migrate)
+

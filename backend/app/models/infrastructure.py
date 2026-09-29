@@ -6,7 +6,7 @@ Database foundation for tracking host cryptographic security postures across cap
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, String, Text
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -40,6 +40,11 @@ class InfrastructureIdentity(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+    port: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=25)
+    protocol: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="SMTP")
+    identity_key: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    active_profile_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     current_risk_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     current_risk_band: Mapped[Optional[RiskBand]] = mapped_column(

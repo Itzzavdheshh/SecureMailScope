@@ -28,11 +28,16 @@ class InfrastructureIdentityRead(BaseModel):
 
     id: str
     ip_address: str
+    port: Optional[int] = 25
+    protocol: Optional[str] = "SMTP"
     hostname: Optional[str] = None
     organization: Optional[str] = None
+    identity_key: Optional[str] = None
     first_seen_at: datetime
     last_seen_at: datetime
     current_risk_score: Optional[float] = None
     current_risk_band: Optional[RiskBand] = None
+    active_profile_json: Optional[str] = None
     last_evaluated_job_id: Optional[str] = None
     drift_events: List[DriftEventRead] = []
+
