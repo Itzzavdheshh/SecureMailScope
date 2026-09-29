@@ -38,59 +38,57 @@ export const GlobalHeader: React.FC = () => {
 
   return (
     <header className="global-header">
-      {/* Left section: Product title & active investigation bar */}
-      <div className="global-header-left" style={{ gap: '12px', minWidth: 0, flex: 1 }}>
-        <span className="global-header-title" style={{ flexShrink: 0 }}>SECUREMAILSCOPE</span>
-        <span style={{ color: 'var(--color-border)', fontSize: '14px', flexShrink: 0 }}>|</span>
+      <div className="global-header-brand">
+        <span className="global-header-title">SECUREMAILSCOPE</span>
+        <span className="global-header-divider" aria-hidden="true">|</span>
+      </div>
 
-        <div className="investigation-bar" style={{ minWidth: 0, flexShrink: 1 }}>
-          <span className="investigation-bar-label" style={{ flexShrink: 0 }}>INVESTIGATION:</span>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} title={investigationName}>
-            {investigationName}
-          </span>
+      <div className="global-header-investigation">
+        <span className="investigation-bar-label">INVESTIGATION:</span>
+        <span className="global-header-investigation-name" title={investigationName}>{investigationName}</span>
+      </div>
 
-          <span style={{ color: 'var(--color-border)', fontSize: '12px', flexShrink: 0 }}>•</span>
-
-          <span className="investigation-bar-label" style={{ flexShrink: 0 }}>CAPTURE:</span>
+      <div className="global-header-capture">
+        <div className="global-header-capture-details">
+          <span className="investigation-bar-label">CAPTURE:</span>
           {activeCapture ? (
             <>
-              <span className="investigation-bar-file" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={activeCapture.filename}>
+              <span className="investigation-bar-file global-header-capture-name" title={activeCapture.filename}>
                 {activeCapture.filename}
               </span>
-              <span className="badge badge--info" style={{ fontSize: '10px', padding: '1px 5px', flexShrink: 0 }}>
+              <span className="badge badge--info global-header-metadata">
                 {activeCapture.total_packets ? `${activeCapture.total_packets} PKTS` : 'READY'}
               </span>
               {activeCapture.risk_band && (
-                <span className={`badge ${getRiskBadgeClass(activeCapture.risk_band)}`} style={{ fontSize: '10px', padding: '1px 5px', flexShrink: 0 }}>
+                <span className={`badge ${getRiskBadgeClass(activeCapture.risk_band)} global-header-metadata`}>
                   {activeCapture.risk_band}
                 </span>
               )}
             </>
           ) : (
-            <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No capture loaded</span>
+            <span className="global-header-no-capture">No capture loaded</span>
           )}
-
-          <button
-            type="button"
-            className="btn btn--ghost"
-            style={{ padding: '2px 8px', fontSize: '11px', gap: '4px', flexShrink: 0, border: '1px solid var(--color-border)', marginLeft: '4px' }}
-            onClick={() => setShowCaptureModal(true)}
-          >
-            <Layers size={12} color="var(--color-blue-700)" />
-            <span>Change Capture</span>
-            <ChevronDown size={12} />
-          </button>
         </div>
+
+        <button
+          type="button"
+          className="btn btn--ghost global-header-change-capture"
+          onClick={() => setShowCaptureModal(true)}
+        >
+          <Layers size={14} color="var(--color-blue-700)" />
+          <span>Change Capture</span>
+          <ChevronDown size={12} />
+        </button>
       </div>
 
-      {/* Right section: Search input & Report dropdown */}
-      <div className="global-header-right" style={{ flexShrink: 0 }}>
-        <div className="command-search-input">
-          <Search size={14} />
-          <input type="text" placeholder="Search sessions, rules, IPs... (Ctrl+K)" />
+      <div className="global-header-right">
+        <div className="command-search-input global-header-search">
+          <Search size={14} aria-hidden="true" />
+          <input type="text" placeholder="Search sessions, rules, IPs..." aria-label="Search sessions, rules, IPs" />
+          <kbd className="global-header-shortcut">Ctrl+K</kbd>
         </div>
 
-        <div style={{ position: 'relative' }}>
+        <div className="global-header-export">
           <button
             type="button"
             className="btn btn--primary"

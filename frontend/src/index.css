@@ -1180,20 +1180,27 @@ select.input {
 
 /* ─── Global Header ────────────────────────────────────────────────────────── */
 .global-header {
-  height: var(--header-height);
+  min-height: var(--header-height);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  gap: 16px;
+  padding: 6px 18px;
   flex-shrink: 0;
 }
 
-.global-header-left {
+.global-header-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.global-header-divider {
+  color: var(--color-border);
+  font-size: 14px;
 }
 
 .global-header-title {
@@ -1203,15 +1210,12 @@ select.input {
   letter-spacing: 0.02em;
 }
 
-.investigation-bar {
+.global-header-investigation {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--color-bg-primary);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  padding: 3px 10px;
-  font-size: 12px;
+  gap: 8px;
+  flex: 1 1 270px;
+  min-width: 230px;
 }
 
 .investigation-bar-label {
@@ -1228,10 +1232,100 @@ select.input {
   color: var(--color-blue-700);
 }
 
+.global-header-investigation-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-header-capture {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1.5 1 400px;
+  min-width: 0;
+}
+
+.global-header-capture-details {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.global-header-capture-details > .investigation-bar-label,
+.global-header-metadata {
+  flex: 0 0 auto;
+}
+
+.global-header-capture-name {
+  min-width: 0;
+  max-width: min(34vw, 460px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+.global-header-metadata {
+  padding: 1px 6px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.global-header-no-capture {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-header-change-capture {
+  flex: 0 0 auto;
+  gap: 6px;
+  margin-left: 2px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
 .global-header-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1 1 350px;
+  min-width: 320px;
+}
+
+.global-header-search {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.global-header-shortcut {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.global-header-export {
+  position: relative;
+  flex: 0 0 auto;
 }
 
 .command-search-input {
@@ -1254,6 +1348,79 @@ select.input {
   font-size: 12px;
   color: var(--color-text);
   width: 100%;
+}
+
+@media (max-width: 1240px) {
+  .global-header {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 10px 18px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .global-header-investigation {
+    flex-basis: 260px;
+  }
+
+  .global-header-capture {
+    flex-basis: 440px;
+  }
+
+  .global-header-right {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 768px) {
+  .global-header {
+    align-items: flex-start;
+    gap: 10px 14px;
+    padding: 10px 12px;
+  }
+
+  .global-header-investigation {
+    flex: 1 1 210px;
+    min-width: min(210px, 100%);
+  }
+
+  .global-header-capture,
+  .global-header-right {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .global-header-capture-name {
+    max-width: 42vw;
+  }
+
+  .global-header-right {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 420px) {
+  .global-header-capture {
+    flex-wrap: wrap;
+  }
+
+  .global-header-capture-details {
+    flex: 1 1 100%;
+  }
+
+  .global-header-capture-name {
+    max-width: 38vw;
+  }
+
+  .global-header-right {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .global-header-search {
+    flex-basis: 100%;
+  }
 }
 
 /* ─── Workspace Tabs ────────────────────────────────────────────────────────── */
