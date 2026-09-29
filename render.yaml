@@ -19,7 +19,7 @@ services:
           name: securemailscope-db
           property: connectionString
       - key: CORS_ORIGINS
-        value: '["https://securemailscope.vercel.app"]'
+        value: '["https://securemailscope-frontend.vercel.app"]'
       - key: UPLOAD_DIR
         value: /tmp/uploads
       - key: RULES_DIR

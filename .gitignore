@@ -26,6 +26,10 @@ htmlcov/
 .venv
 venv/
 ENV/
+.env
+.env.*
+!.env.example
+!**/.env.example
 
 # Node / React
 node_modules/
