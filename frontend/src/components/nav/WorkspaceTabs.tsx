@@ -7,9 +7,10 @@ export const WorkspaceTabs: React.FC = () => {
 
   const tabs = [
     { to: '/', label: 'Overview', count: null },
+    { to: '/captures', label: 'Capture Registry', count: null },
     { to: '/intake', label: 'Intake & PCAP', count: null },
-    { to: '/sessions', label: 'Sessions', count: activeJob?.session_count },
-    { to: '/findings', label: 'Findings', count: activeJob?.finding_count },
+    { to: '/sessions', label: 'Sessions', count: activeJob?.total_sessions ?? null },
+    { to: '/findings', label: 'Findings', count: activeJob?.total_findings ?? null },
     { to: '/evidence', label: 'Evidence', count: null },
     { to: '/infrastructure', label: 'Infrastructure', count: null },
     { to: '/drifts', label: 'Drift', count: null },

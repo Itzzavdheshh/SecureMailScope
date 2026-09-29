@@ -13,6 +13,7 @@ import { DriftPage } from './pages/DriftPage';
 import { TimelinePage } from './pages/TimelinePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { BehaviorPage } from './pages/BehaviorPage';
+import { CaptureRegistryPage } from './pages/CaptureRegistryPage';
 
 export function App() {
   return (
@@ -21,6 +22,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<AppShell />}>
             <Route index element={<OverviewPage />} />
+            <Route path="captures" element={<CaptureRegistryPage />} />
             <Route path="intake" element={<IntakePage />} />
             <Route path="sessions" element={<SessionsPage />} />
             <Route path="sessions/:sessionId" element={<SessionDetailPage />} />

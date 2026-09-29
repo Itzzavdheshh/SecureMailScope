@@ -2,12 +2,22 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { CaptureRead, AnalysisJobRead } from '../types/api';
 import { capturesApi, jobsApi } from '../api/services';
 
+export interface EnrichedCapture extends CaptureRead {
+  job_id?: string;
+  job_status?: string;
+  total_sessions?: number;
+  total_findings?: number;
+  overall_risk_score?: number | null;
+  risk_band?: string | null;
+}
+
 interface WorkspaceContextType {
-  activeCapture: CaptureRead | null;
+  investigationName: string;
+  activeCapture: EnrichedCapture | null;
   activeJob: AnalysisJobRead | null;
-  capturesList: CaptureRead[];
+  capturesList: EnrichedCapture[];
   isLoadingCaptures: boolean;
-  setActiveCapture: (capture: CaptureRead | null) => void;
+  setActiveCapture: (capture: EnrichedCapture | null) => void;
   setActiveJob: (job: AnalysisJobRead | null) => void;
   refreshCaptures: () => Promise<void>;
   selectCaptureById: (captureId: string) => Promise<void>;
@@ -16,20 +26,58 @@ interface WorkspaceContextType {
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeCapture, setActiveCapture] = useState<CaptureRead | null>(null);
+  const investigationName = "SecureMail Demo Investigation";
+  const [activeCapture, setActiveCapture] = useState<EnrichedCapture | null>(null);
   const [activeJob, setActiveJob] = useState<AnalysisJobRead | null>(null);
-  const [capturesList, setCapturesList] = useState<CaptureRead[]>([]);
+  const [capturesList, setCapturesList] = useState<EnrichedCapture[]>([]);
   const [isLoadingCaptures, setIsLoadingCaptures] = useState<boolean>(true);
+
+  const enrichCaptures = async (items: CaptureRead[]): Promise<EnrichedCapture[]> => {
+    return Promise.all(
+      items.map(async (cap) => {
+        try {
+          const jobsRes = await jobsApi.list(cap.id, 1, 1);
+          const latestJob = jobsRes.items.length > 0 ? jobsRes.items[0] : null;
+          return {
+            ...cap,
+            job_id: latestJob?.id,
+            job_status: latestJob?.status,
+            total_sessions: latestJob?.total_sessions ?? 0,
+            total_findings: latestJob?.total_findings ?? 0,
+            overall_risk_score: latestJob?.overall_risk_score ?? null,
+            risk_band: latestJob?.risk_band ?? null,
+          };
+        } catch {
+          return cap;
+        }
+      })
+    );
+  };
 
   const refreshCaptures = async () => {
     setIsLoadingCaptures(true);
     try {
-      const res = await capturesApi.list(1, 50);
-      setCapturesList(res.items);
-      if (res.items.length > 0 && !activeCapture) {
-        const latest = res.items[0];
+      const res = await capturesApi.list(1, 100);
+      const enriched = await enrichCaptures(res.items);
+      setCapturesList(enriched);
+
+      // Check URL search params for capture_id
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetCaptureId = urlParams.get('capture');
+
+      if (targetCaptureId) {
+        const found = enriched.find((c) => c.id === targetCaptureId);
+        if (found) {
+          setActiveCapture(found);
+          const jobs = await jobsApi.list(found.id, 1, 1);
+          if (jobs.items.length > 0) setActiveJob(jobs.items[0]);
+          return;
+        }
+      }
+
+      if (enriched.length > 0 && !activeCapture) {
+        const latest = enriched[0];
         setActiveCapture(latest);
-        // Fetch latest job for capture
         const jobs = await jobsApi.list(latest.id, 1, 1);
         if (jobs.items.length > 0) {
           setActiveJob(jobs.items[0]);
@@ -45,13 +93,26 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const selectCaptureById = async (captureId: string) => {
     try {
       const cap = await capturesApi.get(captureId);
-      setActiveCapture(cap);
       const jobs = await jobsApi.list(captureId, 1, 1);
-      if (jobs.items.length > 0) {
-        setActiveJob(jobs.items[0]);
-      } else {
-        setActiveJob(null);
-      }
+      const latestJob = jobs.items.length > 0 ? jobs.items[0] : null;
+
+      const enrichedCap: EnrichedCapture = {
+        ...cap,
+        job_id: latestJob?.id,
+        job_status: latestJob?.status,
+        total_sessions: latestJob?.total_sessions ?? 0,
+        total_findings: latestJob?.total_findings ?? 0,
+        overall_risk_score: latestJob?.overall_risk_score ?? null,
+        risk_band: latestJob?.risk_band ?? null,
+      };
+
+      setActiveCapture(enrichedCap);
+      setActiveJob(latestJob);
+
+      // Update URL query string without full page reload
+      const url = new URL(window.location.href);
+      url.searchParams.set('capture', captureId);
+      window.history.pushState({}, '', url.toString());
     } catch (err) {
       console.error(`Failed to select capture ${captureId}:`, err);
     }
@@ -64,6 +125,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   return (
     <WorkspaceContext.Provider
       value={{
+        investigationName,
         activeCapture,
         activeJob,
         capturesList,
