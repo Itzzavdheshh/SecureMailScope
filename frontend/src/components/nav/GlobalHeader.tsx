@@ -5,7 +5,7 @@ import { reportsApi } from '../../api/services';
 import { CaptureSelectorModal } from './CaptureSelectorModal';
 
 export const GlobalHeader: React.FC = () => {
-  const { investigationName, activeCapture, activeJob } = useWorkspace();
+  const { activeCapture, activeJob } = useWorkspace();
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showCaptureModal, setShowCaptureModal] = useState(false);
 
@@ -41,11 +41,6 @@ export const GlobalHeader: React.FC = () => {
       <div className="global-header-brand">
         <span className="global-header-title">SECUREMAILSCOPE</span>
         <span className="global-header-divider" aria-hidden="true">|</span>
-      </div>
-
-      <div className="global-header-investigation">
-        <span className="investigation-bar-label">INVESTIGATION:</span>
-        <span className="global-header-investigation-name" title={investigationName}>{investigationName}</span>
       </div>
 
       <div className="global-header-capture">

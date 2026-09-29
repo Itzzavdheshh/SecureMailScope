@@ -1210,14 +1210,6 @@ select.input {
   letter-spacing: 0.02em;
 }
 
-.global-header-investigation {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 270px;
-  min-width: 230px;
-}
-
 .investigation-bar-label {
   color: var(--color-text-muted);
   font-weight: 600;
@@ -1230,16 +1222,6 @@ select.input {
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--color-blue-700);
-}
-
-.global-header-investigation-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text);
-  font-size: 13px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .global-header-capture {
@@ -1359,10 +1341,6 @@ select.input {
     padding-bottom: 8px;
   }
 
-  .global-header-investigation {
-    flex-basis: 260px;
-  }
-
   .global-header-capture {
     flex-basis: 440px;
   }
@@ -1378,11 +1356,6 @@ select.input {
     align-items: flex-start;
     gap: 10px 14px;
     padding: 10px 12px;
-  }
-
-  .global-header-investigation {
-    flex: 1 1 210px;
-    min-width: min(210px, 100%);
   }
 
   .global-header-capture,
