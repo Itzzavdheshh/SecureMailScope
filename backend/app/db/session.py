@@ -15,6 +15,15 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
 
+
+def normalize_database_url(database_url: str) -> str:
+    """Use the async PostgreSQL driver for Render's generic Postgres URLs."""
+    if database_url.startswith("postgres://"):
+        return database_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return database_url
+
 # ─── Declarative Base ─────────────────────────────────────────────────────────
 
 class Base(DeclarativeBase):
@@ -26,7 +35,7 @@ class Base(DeclarativeBase):
 
 # SQLite async URL from settings
 engine = create_async_engine(
-    settings.database_url,
+    normalize_database_url(settings.database_url),
     echo=settings.log_level.upper() == "DEBUG",
     future=True,
     # SQLite-specific connect args

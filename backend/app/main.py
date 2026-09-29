@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 import structlog
 
 from app.config import settings
+from app.db.session import init_db
 from app.logging_config import configure_logging
 
 # Configure structured logging before anything else
@@ -33,6 +34,7 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_db()
     log.info(
         "securemailscope_startup",
         version="0.1.0",

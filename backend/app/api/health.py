@@ -12,6 +12,8 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.config import settings
+from app.db.session import engine
+from sqlalchemy import text
 
 router = APIRouter(tags=["health"])
 
@@ -83,11 +85,12 @@ async def health_check() -> HealthResponse:
     except ImportError as e:
         components["pyyaml"] = ComponentStatus(status="unavailable", detail=str(e))
 
-    # Database check deferred to Phase 1 (DB not yet initialized)
-    components["database"] = ComponentStatus(
-        status="not_initialized",
-        detail="Database initialization is part of Phase 1",
-    )
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+        components["database"] = ComponentStatus(status="ok")
+    except Exception as exc:
+        components["database"] = ComponentStatus(status="unavailable", detail=type(exc).__name__)
 
     overall = "ok"
     critical = {"dpkt", "scapy", "cryptography"}
@@ -115,8 +118,7 @@ async def health_check() -> HealthResponse:
 )
 async def readiness_check() -> dict:
     """
-    Readiness probe. Returns 503 if critical components are missing.
-    Extended in Phase 1 to also verify DB connectivity.
+    Readiness probe. Returns 503 if critical components or database are unavailable.
     """
     missing = []
     for lib in ("dpkt", "scapy", "cryptography"):
@@ -131,5 +133,12 @@ async def readiness_check() -> dict:
             status_code=503,
             detail=f"Critical libraries missing: {missing}",
         )
+
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+    except Exception:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Database is unavailable")
 
     return {"status": "ready", "version": settings.version}
