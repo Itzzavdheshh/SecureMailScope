@@ -52,3 +52,6 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+
+# Root temporary uploads
+uploads/
