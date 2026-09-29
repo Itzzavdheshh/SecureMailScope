@@ -1310,6 +1310,36 @@ select.input {
   flex: 0 0 auto;
 }
 
+.global-header-export-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--z-dropdown);
+  min-width: 220px;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.global-header-export-option {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.global-header-export-option svg {
+  flex: 0 0 14px;
+}
+
 .command-search-input {
   display: flex;
   align-items: center;

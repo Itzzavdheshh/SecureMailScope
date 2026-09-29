@@ -97,25 +97,10 @@ export const GlobalHeader: React.FC = () => {
           </button>
 
           {showExportMenu && activeJob && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: '4px',
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: 'var(--shadow-md)',
-                zIndex: 150,
-                minWidth: '180px',
-                padding: '4px',
-              }}
-            >
+            <div className="global-header-export-menu">
               <button
                 type="button"
-                className="btn btn--ghost"
-                style={{ width: '100%', justifyContent: 'flex-start', fontSize: '12px', padding: '6px 10px' }}
+                className="btn btn--ghost global-header-export-option"
                 onClick={() => handleReportAction('json')}
               >
                 <FileCode size={14} color="var(--color-blue-600)" />
@@ -123,8 +108,7 @@ export const GlobalHeader: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="btn btn--ghost"
-                style={{ width: '100%', justifyContent: 'flex-start', fontSize: '12px', padding: '6px 10px' }}
+                className="btn btn--ghost global-header-export-option"
                 onClick={() => handleReportAction('html')}
               >
                 <FileText size={14} color="var(--color-blue-600)" />
@@ -132,8 +116,7 @@ export const GlobalHeader: React.FC = () => {
               </button>
               <button
                 type="button"
-                className="btn btn--ghost"
-                style={{ width: '100%', justifyContent: 'flex-start', fontSize: '12px', padding: '6px 10px' }}
+                className="btn btn--ghost global-header-export-option"
                 onClick={() => handleReportAction('pdf')}
               >
                 <FileSpreadsheet size={14} color="var(--color-blue-600)" />
