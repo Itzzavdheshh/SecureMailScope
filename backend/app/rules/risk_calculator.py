@@ -89,3 +89,16 @@ def calculate_job_risk_score(session_scores: List[float]) -> float:
 
     job_score = min(100.0, round(0.7 * max_score + 0.3 * avg_score, 1))
     return job_score
+
+
+def calculate_job_risk_band(score: float) -> RiskBand:
+    if score >= 80.0:
+        return RiskBand.CRITICAL
+    elif score >= 60.0:
+        return RiskBand.HIGH
+    elif score >= 40.0:
+        return RiskBand.MEDIUM
+    elif score >= 20.0:
+        return RiskBand.LOW
+    else:
+        return RiskBand.SECURE

@@ -146,7 +146,15 @@ async def build_report_data_graph(db: AsyncSession, job_id: str) -> Optional[Dic
         "executive_summary": {
             "job_id": job.id,
             "overall_risk_score": job.overall_risk_score or 0.0,
-            "risk_band": job.risk_band.value if hasattr(job.risk_band, "value") else str(job.risk_band or "SECURE"),
+            "risk_band": (
+            job.risk_band.value if hasattr(job.risk_band, "value") and job.risk_band is not None
+            else (
+                __import__("app.rules.risk_calculator", fromlist=["calculate_job_risk_band"])
+                .calculate_job_risk_band(job.overall_risk_score or 0.0).value
+                if job.overall_risk_score is not None
+                else "SECURE"
+            )
+        ),
             "total_sessions": len(sessions),
             "total_findings": len(findings),
             "severity_distribution": sev_dist,

@@ -108,6 +108,7 @@ async def run_pipeline(
         created_sessions: List[EmailSession] = []
         session_risk_scores: List[float] = []
         session_index = 0
+        total_finding_count = 0
 
         # Step 2: Iterate TCP flows and process each conversation
         for key, flow in flow_manager.flows.items():
@@ -300,6 +301,8 @@ async def run_pipeline(
             for ev in evidence_recs:
                 db.add(ev)
 
+            total_finding_count += len(findings)
+
             # Compute transparent Session Risk Score
             sess_score, _ = calculate_session_risk_score(findings, risk_config)
             email_sess.risk_score = sess_score
@@ -321,16 +324,27 @@ async def run_pipeline(
             infra = res.scalar_one_or_none()
 
             now_utc = datetime.now(timezone.utc)
+            proto_val = email_sess.protocol.value if hasattr(email_sess.protocol, "value") else str(email_sess.protocol)
+            profile_json_str = json.dumps(current_profile.to_dict()) if current_profile else None
+
             if infra:
                 infra.last_seen_at = now_utc
                 infra.hostname = email_sess.hostname or infra.hostname
+                infra.port = email_sess.server_port or infra.port
+                infra.protocol = proto_val or infra.protocol
+                infra.identity_key = ident_key
+                infra.active_profile_json = profile_json_str
                 infra.current_risk_score = sess_score
                 infra.last_evaluated_job_id = job.id
             else:
                 infra = InfrastructureIdentity(
                     id=str(uuid.uuid4()),
                     ip_address=email_sess.server_ip,
+                    port=email_sess.server_port,
+                    protocol=proto_val,
                     hostname=email_sess.hostname,
+                    identity_key=ident_key,
+                    active_profile_json=profile_json_str,
                     first_seen_at=now_utc,
                     last_seen_at=now_utc,
                     current_risk_score=sess_score,
@@ -442,9 +456,15 @@ async def run_pipeline(
         job_risk = calculate_job_risk_score(session_risk_scores)
         job.overall_risk_score = job_risk
 
+        # Persist derived risk band so report generator (raw ORM path) always has it
+        from app.rules.risk_calculator import calculate_job_risk_band
+        job_risk_band = calculate_job_risk_band(job_risk)
+
         # Update AnalysisJob completed state
         job.status = JobStatus.COMPLETED
         job.total_sessions = len(created_sessions)
+        job.total_findings = total_finding_count
+        job.risk_band = job_risk_band
         job.completed_at = datetime.now(timezone.utc)
         await db.commit()
 

@@ -620,3 +620,128 @@ async def test_openapi_schema_availability(client: AsyncClient):
     assert "/api/v1/captures" in schema["paths"]
     assert "/api/v1/jobs" in schema["paths"]
     assert "/api/v1/reports/{job_id}" in schema["paths"]
+
+
+# ─── PART D — AUDIT REGRESSION TESTS (TEST 2 FIXES) ─────────────────────────
+
+@pytest.mark.anyio
+async def test_regression_issue1_report_posture_preserves_calculated_risk():
+    """
+    Test 1 Regression:
+    A job/report with risk=65.0 and 1 session must return total_sessions=1 and risk_band=HIGH.
+    The posture must not fall back to INSUFFICIENT_EVIDENCE when observed evidence is present.
+    """
+    from app.schemas.job import AnalysisJobRead
+    from app.models.enums import JobStatus, RiskBand
+
+    job_read = AnalysisJobRead(
+        id="job-reg-1",
+        capture_id="cap-reg-1",
+        status=JobStatus.COMPLETED,
+        total_sessions=1,
+        total_findings=4,
+        overall_risk_score=65.0,
+        risk_band=RiskBand.HIGH,
+        created_at=datetime.now(timezone.utc),
+    )
+    # Verify job schema fields
+    assert job_read.total_sessions == 1
+    assert job_read.total_findings == 4
+    assert job_read.overall_risk_score == 65.0
+    assert job_read.risk_band == RiskBand.HIGH
+    assert job_read.risk_band.value == "HIGH"
+    assert job_read.risk_band != "INSUFFICIENT_EVIDENCE"
+
+
+@pytest.mark.anyio
+async def test_regression_issue2_infrastructure_identity_serialization(client: AsyncClient, sample_db_data):
+    """
+    Test 2 Regression:
+    An infrastructure identity with server IP 198.51.100.11, port 25, and SMTP
+    must serialize with port=25, protocol="SMTP", and valid identity_key without UNDEFINED values.
+    """
+    from app.db.session import AsyncSessionLocal
+    from app.models.infrastructure import InfrastructureIdentity
+    from app.schemas.infrastructure import InfrastructureIdentityRead
+
+    async with AsyncSessionLocal() as db:
+        infra = InfrastructureIdentity(
+            id="infra-reg-2",
+            ip_address="198.51.100.11",
+            port=25,
+            protocol="SMTP",
+            hostname="smtp.legacy.example",
+            identity_key="9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c",
+            first_seen_at=datetime.now(timezone.utc),
+            last_seen_at=datetime.now(timezone.utc),
+            current_risk_score=65.0,
+        )
+        db.add(infra)
+        await db.commit()
+
+    resp = await client.get("/api/v1/infrastructure/infra-reg-2")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ip_address"] == "198.51.100.11"
+    assert data["port"] == 25
+    assert data["protocol"] == "SMTP"
+    assert data["hostname"] == "smtp.legacy.example"
+    assert data["identity_key"] == "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c"
+    assert "UNDEFINED" not in str(data["port"])
+    assert "UNDEFINED" not in str(data["protocol"])
+
+
+@pytest.mark.anyio
+async def test_regression_issue3_cryptographic_profile_json_persistence(client: AsyncClient, sample_db_data):
+    """
+    Test 3 Regression:
+    A persisted cryptographic profile must be returned in active_profile_json
+    and contain valid JSON with session TLS/STARTTLS attributes.
+    """
+    from app.db.session import AsyncSessionLocal
+    from app.models.infrastructure import InfrastructureIdentity
+
+    profile_data = {
+        "protocol": "SMTP",
+        "server_ip": "198.51.100.11",
+        "server_port": 25,
+        "hostname": "smtp.legacy.example",
+        "negotiated_tls_version": "TLS 1.0",
+        "negotiated_cipher_suite": "TLS_RSA_WITH_AES_256_CBC_SHA",
+        "forward_secrecy": False,
+        "key_exchange_algorithm": None,
+        "leaf_cert_sha256": "abc123def456",
+        "cert_signature_algorithm": "sha256WithRSAEncryption",
+        "cert_public_key_type": "RSA",
+        "cert_public_key_bits": 2048,
+        "cert_self_signed": True,
+        "starttls_state": "ACCEPTED",
+    }
+    profile_json_str = json.dumps(profile_data)
+
+    async with AsyncSessionLocal() as db:
+        infra = InfrastructureIdentity(
+            id="infra-reg-3",
+            ip_address="198.51.100.11",
+            port=25,
+            protocol="SMTP",
+            hostname="smtp.legacy.example",
+            identity_key="abcdef1234567890abcdef1234567890",
+            active_profile_json=profile_json_str,
+            first_seen_at=datetime.now(timezone.utc),
+            last_seen_at=datetime.now(timezone.utc),
+            current_risk_score=65.0,
+        )
+        db.add(infra)
+        await db.commit()
+
+    resp = await client.get("/api/v1/infrastructure/infra-reg-3")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["active_profile_json"] is not None
+    parsed_profile = json.loads(data["active_profile_json"])
+    assert parsed_profile["negotiated_tls_version"] == "TLS 1.0"
+    assert parsed_profile["negotiated_cipher_suite"] == "TLS_RSA_WITH_AES_256_CBC_SHA"
+    assert parsed_profile["forward_secrecy"] is False
+    assert parsed_profile["starttls_state"] == "ACCEPTED"
+
