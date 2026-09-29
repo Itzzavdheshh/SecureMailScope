@@ -1,4 +1,4 @@
-"""
+﻿"""
 Deterministic Security Rule Evaluator.
 Evaluates loaded security rules against extracted forensic data (EmailSession, TlsHandshake, Certificate, StarttlsState).
 Creates Finding and Evidence records with full packet lineage. Safe condition evaluation without eval().
@@ -135,7 +135,21 @@ def get_session_attribute(
         layer = "X509"
 
     elif field_name == "not_yet_valid_at_capture":
-        val = (cert.is_valid_at_capture is False and cert.not_before is not None) if cert else None
+        # TRUE only when the capture timestamp is strictly before the certificate's
+        # notBefore date -- i.e. the cert was not yet valid at the time of capture.
+        # IMPORTANT: is_valid_at_capture is False for BOTH expired AND not-yet-valid certs,
+        # so we must NOT use it as a proxy here. Compare capture time vs not_before directly.
+        if cert and cert.not_before is not None and session.start_time is not None:
+            from datetime import timezone as _tz
+            cap_dt = session.start_time
+            nb = cert.not_before
+            if cap_dt.tzinfo is None:
+                cap_dt = cap_dt.replace(tzinfo=_tz.utc)
+            if nb.tzinfo is None:
+                nb = nb.replace(tzinfo=_tz.utc)
+            val = cap_dt < nb
+        else:
+            val = None
         frame = tls.server_hello_frame if tls else None
         layer = "X509"
 
