@@ -109,13 +109,37 @@ async def ingest_pcap_upload(
         existing_capture = res.scalar_one_or_none()
 
         if existing_capture is not None:
+            # Clean up temp file
+            if temp_file_path.exists():
+                try:
+                    os.remove(temp_file_path)
+                except OSError:
+                    pass
+
+            # Create a new AnalysisJob for the existing capture so it can be analyzed
+            job = AnalysisJob(
+                capture_id=existing_capture.id,
+                status=JobStatus.PENDING,
+                total_sessions=0,
+                total_findings=0,
+            )
+            db.add(job)
+            await db.commit()
+            await db.refresh(job)
+
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
                     "message": "Duplicate capture file already exists.",
                     "existing_capture_id": existing_capture.id,
-                    "sha256_hash": sha256_hash,
+                    "id": existing_capture.id,
                     "filename": existing_capture.filename,
+                    "file_path": existing_capture.file_path,
+                    "file_size_bytes": existing_capture.file_size_bytes,
+                    "sha256_hash": sha256_hash,
+                    "total_packets": existing_capture.total_packets,
+                    "job_id": job.id,
+                    "job_status": job.status.value if hasattr(job.status, "value") else str(job.status),
                 },
             )
 
