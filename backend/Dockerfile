@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Copy rules from project root (passed via build context)
+COPY rules ./rules
+
 # Create upload directory with correct ownership
 RUN mkdir -p /app/uploads && chown sms:sms /app/uploads
 

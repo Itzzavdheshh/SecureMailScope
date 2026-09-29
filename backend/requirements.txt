@@ -43,3 +43,4 @@ httpx==0.28.1                   # Async HTTP client for API tests
 
 # ─── Development / utilities ─────────────────────────────────────────────────
 structlog==24.4.0               # Structured logging
+asyncpg==0.30.0                 # Async PostgreSQL driver (production)

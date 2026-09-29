@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: securemailscope-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_FORMAT
+        value: json
+      - key: LOG_LEVEL
+        value: INFO
+      - key: RELOAD
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: securemailscope-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: '["https://securemailscope.vercel.app"]'
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: RULES_DIR
+        value: ../rules
+      - key: MAX_UPLOAD_SIZE_MB
+        value: 100
+      - key: ANALYSIS_TIMEOUT_SECONDS
+        value: 300
+
+databases:
+  - name: securemailscope-db
+    plan: free
