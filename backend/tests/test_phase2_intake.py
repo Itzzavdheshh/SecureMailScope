@@ -172,6 +172,37 @@ async def test_05_duplicate_sha256_handled_correctly():
 
 
 @pytest.mark.asyncio
+async def test_duplicate_upload_restores_missing_ephemeral_capture():
+    """A duplicate re-upload restores a capture whose ephemeral file was lost."""
+    pcap_data = create_minimal_pcap_bytes(51)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        first = await client.post(
+            "/api/captures/upload",
+            files={"file": ("restorable.pcap", io.BytesIO(pcap_data), "application/octet-stream")},
+        )
+        assert first.status_code == 201
+        original_path = Path(first.json()["capture"]["file_path"])
+        original_path.unlink()
+
+        duplicate = await client.post(
+            "/api/captures/upload",
+            files={"file": ("restorable.pcap", io.BytesIO(pcap_data), "application/octet-stream")},
+        )
+        assert duplicate.status_code == 409
+        details = duplicate.json()["detail"]
+        restored_path = Path(details["file_path"])
+        assert restored_path.is_file()
+        assert restored_path.read_bytes() == pcap_data
+
+        started = await client.post(f"/api/jobs/{details['job_id']}/start")
+        assert started.status_code == 200
+        assert started.json()["job"]["status"] == "COMPLETED"
+
+
+@pytest.mark.asyncio
 async def test_06_invalid_extension_rejected():
     """6. Invalid extension is rejected (HTTP 400 Bad Request)."""
     async with AsyncClient(

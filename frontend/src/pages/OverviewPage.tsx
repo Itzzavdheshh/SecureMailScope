@@ -66,6 +66,18 @@ export const OverviewPage: React.FC = () => {
     );
   }
 
+  if (activeJob?.status === 'FAILED') {
+    const failure = activeJob.error_message || 'The analysis job failed before producing results.';
+    const recovery = failure.includes('Capture file not found')
+      ? ' Re-upload the PCAP from Intake & PCAP to restore the source file, then run the pipeline again.'
+      : '';
+    return (
+      <div className="workspace-page">
+        <ErrorState title="Analysis Failed" message={`${failure}${recovery}`} />
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="workspace-page">

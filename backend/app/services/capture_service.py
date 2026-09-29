@@ -101,6 +101,13 @@ async def ingest_pcap_upload(
                 detail="Invalid file format: Unrecognized PCAP magic bytes signature.",
             )
 
+        metadata = inspect_pcap_file(temp_file_path)
+        if not metadata.is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Malformed or truncated capture: {metadata.error_detail or 'invalid packet data'}",
+            )
+
         sha256_hash = sha256_hasher.hexdigest()
 
         # Check duplicate hash in DB
@@ -109,8 +116,24 @@ async def ingest_pcap_upload(
         existing_capture = res.scalar_one_or_none()
 
         if existing_capture is not None:
-            # Clean up temp file
-            if temp_file_path.exists():
+            existing_file = Path(existing_capture.file_path)
+            if not existing_file.is_file():
+                # Render's ephemeral filesystem may lose the original while its DB row remains.
+                target_ext = ".pcapng" if fmt == "pcapng" else ".pcap"
+                restored_path = upload_dir / f"{uuid.uuid4().hex}{target_ext}"
+                if not restored_path.resolve().is_relative_to(upload_dir.resolve()):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Path traversal attempt detected in target path.",
+                    )
+                os.replace(temp_file_path, restored_path)
+                existing_capture.file_path = str(restored_path)
+                existing_capture.file_size_bytes = total_bytes
+                existing_capture.total_packets = metadata.total_packets
+                existing_capture.capture_start_time = metadata.capture_start_time
+                existing_capture.capture_end_time = metadata.capture_end_time
+                existing_capture.status = "UPLOADED"
+            elif temp_file_path.exists():
                 try:
                     os.remove(temp_file_path)
                 except OSError:
@@ -156,13 +179,6 @@ async def ingest_pcap_upload(
             )
 
         # Move temp file to permanent location
-        metadata = inspect_pcap_file(temp_file_path)
-        if not metadata.is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Malformed or truncated capture: {metadata.error_detail or 'invalid packet data'}",
-            )
-
         os.replace(temp_file_path, permanent_path)
 
         # Create Capture record
