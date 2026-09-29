@@ -109,8 +109,8 @@ export const OverviewPage: React.FC = () => {
   return (
     <div className="workspace-page-scrollable">
       {/* Investigation Context Banner */}
-      <div className="card" style={{ marginBottom: '16px', background: 'var(--color-bg-primary)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+      <div className="page-context-header">
+        <div>
           <div>
             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-blue-700)', letterSpacing: '0.05em' }}>
               INVESTIGATION WORKSPACE OVERVIEW

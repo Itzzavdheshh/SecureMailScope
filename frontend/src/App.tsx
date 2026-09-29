@@ -22,6 +22,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<AppShell />}>
             <Route index element={<OverviewPage />} />
+            <Route path="overview" element={<OverviewPage />} />
             <Route path="captures" element={<CaptureRegistryPage />} />
             <Route path="intake" element={<IntakePage />} />
             <Route path="sessions" element={<SessionsPage />} />
@@ -30,6 +31,7 @@ export function App() {
             <Route path="evidence" element={<EvidencePage />} />
             <Route path="infrastructure" element={<InfrastructurePage />} />
             <Route path="drifts" element={<DriftPage />} />
+            <Route path="drift" element={<DriftPage />} />
             <Route path="timeline" element={<TimelinePage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="behavior" element={<BehaviorPage />} />

@@ -832,6 +832,26 @@ select.input {
   margin-top: var(--space-1);
 }
 
+.page-context-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-bottom: var(--space-4);
+}
+
+.page-context-header > div:first-child {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .page-context-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
 /* ─── Section Divider ────────────────────────────────────────────────────────── */
 .section-label {
   font-size: var(--text-xs);

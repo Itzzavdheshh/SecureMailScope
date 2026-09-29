@@ -161,6 +161,7 @@ async def test_scenario_05_expired_cert():
             find_res = await session.execute(select(Finding).where(Finding.job_id == job_id))
             findings = find_res.scalars().all()
             assert any(f.rule_id == "CERT-001" for f in findings)
+            assert not any(f.rule_id == "CERT-002" for f in findings)
 
 
 @pytest.mark.asyncio

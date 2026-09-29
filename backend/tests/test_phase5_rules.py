@@ -5,7 +5,7 @@ Validates all 30 specified requirements for Phase 5.
 
 import io
 import pytest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
@@ -284,7 +284,7 @@ def test_11_not_yet_valid_certificate_finding():
     """11. Not-yet-valid certificate finding."""
     sess, tls, cert, chain, stls = create_dummy_session()
     cert.is_valid_at_capture = False
-    cert.not_before = datetime.now(timezone.utc)
+    cert.not_before = sess.start_time + timedelta(seconds=1)
 
     rules = load_rules_from_directory()
     findings, evidence = evaluate_rules_for_session(sess, "job-1", "cap-1", rules)
