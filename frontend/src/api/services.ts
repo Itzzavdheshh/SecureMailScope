@@ -241,11 +241,17 @@ export const riskApi = {
 
 export const reportsApi = {
   getJobReportUrl: (jobId: string, format: 'json' | 'html' | 'pdf'): string => {
-    return `/api/v1/reports/${jobId}?format=${format}`;
+    return apiClient.getUri({
+      url: `/reports/${encodeURIComponent(jobId)}`,
+      params: { format },
+    });
   },
 
   getCaptureReportUrl: (captureId: string, format: 'json' | 'html' | 'pdf'): string => {
-    return `/api/v1/captures/${captureId}/report?format=${format}`;
+    return apiClient.getUri({
+      url: `/captures/${encodeURIComponent(captureId)}/report`,
+      params: { format },
+    });
   },
 };
 

@@ -45,7 +45,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({ documents }) => {
         AVAILABLE FORENSIC REPORT ARTIFACTS
       </div>
 
-      <table className="dense-table">
+      <table className="dense-table document-list__table">
         <thead>
           <tr>
             <th style={{ width: '40px' }}></th>
@@ -65,7 +65,9 @@ export const DocumentList: React.FC<DocumentListProps> = ({ documents }) => {
                   {doc.format}
                 </span>
               </td>
-              <td style={{ color: 'var(--color-text-secondary)' }}>{doc.description}</td>
+              <td style={{ color: 'var(--color-text-secondary)' }}>
+                <span className="document-list__description" title={doc.description}>{doc.description}</span>
+              </td>
               <td style={{ textAlign: 'right' }}>
                 <div style={{ display: 'inline-flex', gap: '6px' }}>
                   <button

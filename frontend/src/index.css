@@ -1534,6 +1534,26 @@ select.input {
   font-weight: 500;
 }
 
+.document-list__table {
+  table-layout: fixed;
+}
+
+.document-list__table th:nth-child(1) { width: 40px; }
+.document-list__table th:nth-child(2) { width: 25%; }
+.document-list__table th:nth-child(3) { width: 70px; }
+.document-list__table th:nth-child(5) { width: 190px; }
+
+.document-list__table td {
+  overflow: hidden;
+}
+
+.document-list__description {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ─── Timeline Stream ───────────────────────────────────────────────────────── */
 .timeline-stream {
   display: flex;

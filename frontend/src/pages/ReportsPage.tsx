@@ -2,6 +2,7 @@ import React from 'react';
 import { FileText, CheckCircle2 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { reportsApi } from '../api/services';
+import { apiClient } from '../api/client';
 import { EmptyState } from '../components/common/StateViews';
 import { DocumentList } from '../components/common/DocumentList';
 import { Badge, RiskBandBadge } from '../components/common/Badge';
@@ -27,36 +28,62 @@ export const ReportsPage: React.FC = () => {
   const htmlUrl = reportsApi.getJobReportUrl(activeJob.id, 'html');
   const pdfUrl = reportsApi.getJobReportUrl(activeJob.id, 'pdf');
 
+  const openReport = async (url: string) => {
+    const reportWindow = window.open('about:blank', '_blank');
+    if (!reportWindow) return;
+    reportWindow.opener = null;
+
+    try {
+      const response = await apiClient.get<Blob>(url, { responseType: 'blob' });
+      const objectUrl = URL.createObjectURL(response.data);
+      reportWindow.location.href = objectUrl;
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      reportWindow.close();
+      window.alert('Unable to open this report. Please try again.');
+    }
+  };
+
+  const downloadReport = async (url: string, format: 'json' | 'html' | 'pdf') => {
+    try {
+      const response = await apiClient.get<Blob>(url, { responseType: 'blob' });
+      const objectUrl = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `securemailscope-report-${activeJob.id.slice(0, 8)}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      window.alert('Unable to download this report. Please try again.');
+    }
+  };
+
   const documents = [
     {
       id: 'doc-json',
       type: 'Structured Investigation Data Graph',
       format: 'JSON' as const,
       description: 'Machine-readable JSON data tree containing complete session, finding, and packet evidence fields.',
-      onView: () => window.open(jsonUrl, '_blank'),
-      onDownload: () => {
-        window.location.href = jsonUrl;
-      },
+      onView: () => void openReport(jsonUrl),
+      onDownload: () => void downloadReport(jsonUrl, 'json'),
     },
     {
       id: 'doc-html',
       type: 'Standalone Forensic Analysis Report',
       format: 'HTML' as const,
       description: 'Self-contained HTML report document with executive summary, tables, and evidence lineage.',
-      onView: () => window.open(htmlUrl, '_blank'),
-      onDownload: () => {
-        window.location.href = htmlUrl;
-      },
+      onView: () => void openReport(htmlUrl),
+      onDownload: () => void downloadReport(htmlUrl, 'html'),
     },
     {
       id: 'doc-pdf',
       type: 'Forensic Analysis Report',
       format: 'PDF' as const,
       description: 'Printable PDF report containing analysis results, findings, evidence references, timeline events, and investigation limitations.',
-      onView: () => window.open(pdfUrl, '_blank'),
-      onDownload: () => {
-        window.location.href = pdfUrl;
-      },
+      onView: () => void openReport(pdfUrl),
+      onDownload: () => void downloadReport(pdfUrl, 'pdf'),
     },
   ];
 

@@ -83,6 +83,16 @@ export const OverviewPage: React.FC = () => {
   }
 
   const hasSessions = (riskData?.total_sessions || 0) > 0;
+  const rawPostureScore = riskData?.overall_risk_score ?? 0;
+  const postureScore = Math.min(100, Math.max(0, Number.isFinite(rawPostureScore) ? rawPostureScore : 0));
+  const displayedPostureScore = Math.round(postureScore);
+  const postureColor = !hasSessions
+    ? 'var(--color-border-strong)'
+    : postureScore >= 60
+    ? 'var(--color-critical)'
+    : postureScore >= 40
+    ? 'var(--color-warning)'
+    : 'var(--color-success)';
 
   const metrics = [
     { label: 'Total Sessions', value: riskData?.total_sessions ?? 0 },
@@ -132,14 +142,8 @@ export const OverviewPage: React.FC = () => {
                   width: '90px',
                   height: '90px',
                   borderRadius: '50%',
-                  border: '6px solid var(--color-blue-100)',
-                  borderTopColor: !hasSessions
-                    ? 'var(--color-border-strong)'
-                    : (riskData?.overall_risk_score || 0) >= 60
-                    ? 'var(--color-critical)'
-                    : (riskData?.overall_risk_score || 0) >= 40
-                    ? 'var(--color-warning)'
-                    : 'var(--color-success)',
+                  border: '6px solid transparent',
+                  background: `linear-gradient(var(--color-surface), var(--color-surface)) padding-box, conic-gradient(${postureColor} 0% ${displayedPostureScore}%, var(--color-blue-100) ${displayedPostureScore}% 100%) border-box`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -149,7 +153,7 @@ export const OverviewPage: React.FC = () => {
                   color: !hasSessions ? 'var(--color-text-muted)' : 'inherit',
                 }}
               >
-                {(riskData?.overall_risk_score || 0).toFixed(0)}
+                {displayedPostureScore}
               </div>
 
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
