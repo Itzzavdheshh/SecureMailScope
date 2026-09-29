@@ -29,6 +29,7 @@ from app.models import (
 )
 
 from app.analyzers.pcap_reader import stream_pcap_frames, PacketRecord
+from app.utils.pcap_inspector import inspect_pcap_file, PcapReadError
 from app.analyzers.tcp_flow import TcpFlowManager, make_canonical_key
 from app.analyzers.tcp_reassembler import reassemble_packet_list, StreamSegment
 from app.analyzers.protocol_detector import classify_email_flow
@@ -85,6 +86,47 @@ def build_raw_pcap(packet_payloads: list) -> bytes:
     return bytes(pcap_data)
 
 
+def test_pcap_reader_accepts_valid_and_empty_captures(tmp_path):
+    valid_path = tmp_path / "valid.pcap"
+    valid_path.write_bytes(build_raw_pcap([{"payload": b"220 mail.example ESMTP\\r\\n"}]))
+    assert inspect_pcap_file(valid_path).is_valid
+    assert len(list(stream_pcap_frames(valid_path))) == 1
+
+    empty_path = tmp_path / "empty.pcap"
+    empty_path.write_bytes(build_raw_pcap([]))
+    assert inspect_pcap_file(empty_path).is_valid
+    assert list(stream_pcap_frames(empty_path)) == []
+
+
+@pytest.mark.parametrize("captured_len", [0xFFFFFFFF, 16 * 1024 * 1024 + 1])
+def test_pcap_reader_rejects_impossible_or_oversized_caplen(tmp_path, captured_len):
+    data = bytearray(build_raw_pcap([{"payload": b"x"}]))
+    struct.pack_into("<I", data, 24 + 8, captured_len)
+    path = tmp_path / "oversized.pcap"
+    path.write_bytes(data)
+
+    assert inspect_pcap_file(path).is_valid is False
+    with pytest.raises(PcapReadError):
+        list(stream_pcap_frames(path))
+
+
+def test_pcap_reader_rejects_truncated_record_and_skips_malformed_packet(tmp_path):
+    complete = build_raw_pcap([{"payload": b"x"}])
+    truncated_path = tmp_path / "truncated.pcap"
+    truncated_path.write_bytes(complete[:-1])
+    assert inspect_pcap_file(truncated_path).is_valid is False
+
+    malformed_packet = (
+        struct.pack("<IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+        + struct.pack("<IIII", 1700000000, 0, 3, 3)
+        + b"bad"
+    )
+    malformed_path = tmp_path / "malformed-packet.pcap"
+    malformed_path.write_bytes(malformed_packet)
+    assert inspect_pcap_file(malformed_path).is_valid
+    assert list(stream_pcap_frames(malformed_path)) == []
+
+
 @pytest.fixture(autouse=True)
 async def setup_test_environment(tmp_path):
     """Override upload_dir and database_url to isolated temp folder/file for each test."""
@@ -119,6 +161,34 @@ async def setup_test_environment(tmp_path):
     await db_session_module.engine.dispose()
     settings.upload_dir = original_upload_dir
     settings.database_url = original_db_url
+
+
+@pytest.mark.asyncio
+async def test_malformed_stored_capture_fails_its_job_without_escaping_pipeline():
+    from sqlalchemy import select
+    from app.db import session as db_session_module
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/captures/upload",
+            files={"file": ("valid-before-corruption.pcap", build_raw_pcap([{"payload": b"x"}]), "application/octet-stream")},
+        )
+    assert response.status_code == 201
+    capture_id = response.json()["capture"]["id"]
+    job_id = response.json()["job_id"]
+    pcap_path = Path(response.json()["capture"]["file_path"])
+    data = bytearray(pcap_path.read_bytes())
+    struct.pack_into("<I", data, 24 + 8, 0xFFFFFFFF)
+    pcap_path.write_bytes(data)
+
+    async with db_session_module.AsyncSessionLocal() as session:
+        capture = await session.get(Capture, capture_id)
+        job = await session.get(AnalysisJob, job_id)
+        with pytest.raises(PcapReadError):
+            await run_phase3_pipeline(capture, job, session)
+        await session.refresh(job)
+        assert job.status == JobStatus.FAILED
+        assert "captured length" in job.error_message
 
 
 @pytest.mark.asyncio
@@ -515,6 +585,6 @@ async def test_20_malformed_packet_handling_without_crashing(tmp_path):
     pcap_file = tmp_path / "malformed.pcap"
     pcap_file.write_bytes(corrupt_data)
 
-    # Streaming should catch error without crashing
-    packets = list(stream_pcap_frames(pcap_file))
-    assert isinstance(packets, list)
+    # Invalid length metadata is rejected explicitly so the job can be marked failed.
+    with pytest.raises(PcapReadError):
+        list(stream_pcap_frames(pcap_file))

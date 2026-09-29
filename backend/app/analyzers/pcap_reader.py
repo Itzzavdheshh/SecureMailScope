@@ -5,13 +5,12 @@ Preserves 1-indexed frame numbers, epoch timestamps, 4-tuple IP/ports, TCP flags
 """
 
 import socket
-import struct
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generator, Optional
 import dpkt
 
-from app.utils.pcap_inspector import detect_pcap_format
+from app.utils.pcap_inspector import detect_pcap_format, iter_capture_records, PcapReadError
 
 
 @dataclass
@@ -56,27 +55,12 @@ def stream_pcap_frames(
 
     fmt = detect_pcap_format(header_bytes)
     if fmt == "unknown":
-        return
+        raise PcapReadError("Unrecognized PCAP/PCAPNG file header.")
 
     frame_number = 0
 
     with open(file_path, "rb") as f:
-        reader = None
-        if fmt == "pcap":
-            try:
-                reader = dpkt.pcap.Reader(f)
-            except Exception:
-                return
-        elif fmt == "pcapng":
-            try:
-                reader = dpkt.pcapng.Reader(f)
-            except Exception:
-                return
-
-        if reader is None:
-            return
-
-        for ts, pkt in reader:
+        for ts, pkt in iter_capture_records(f, fmt, file_path.stat().st_size):
             frame_number += 1
 
             try:

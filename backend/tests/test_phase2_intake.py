@@ -40,10 +40,15 @@ def create_minimal_pcap_bytes(tag: int = 0) -> bytes:
 
 
 def create_minimal_pcapng_bytes(tag: int = 0) -> bytes:
-    """Generate a valid minimal PCAPNG byte stream with Section Header Block."""
-    # SHB (28 bytes): Type=0x0A0D0D0A, Length=28, BOM=0x1A2B3C4D, Major=1, Minor=0, SectionLen=-1, Length=28
+    """Generate a valid one-packet PCAPNG file with SHB, IDB, and EPB."""
     shb = struct.pack("<IIIHHqI", 0x0A0D0D0A, 28, 0x1A2B3C4D, 1, 0, -1, 28)
-    return shb + bytes([tag % 256]) * 4
+    idb = struct.pack("<IIHHII", 1, 20, 1, 0, 65535, 20)
+    epb = (
+        struct.pack("<IIIIIII", 6, 36, 0, 0, tag, 1, 1)
+        + bytes([tag % 256, 0, 0, 0])
+        + struct.pack("<I", 36)
+    )
+    return shb + idb + epb
 
 
 
@@ -283,6 +288,19 @@ async def test_13_corrupt_metadata_does_not_fabricate_values(tmp_path):
     assert meta.total_packets == 0
     assert meta.capture_start_time is None
     assert meta.capture_end_time is None
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_impossible_packet_length(tmp_path):
+    malformed = bytearray(create_minimal_pcap_bytes(131))
+    struct.pack_into("<I", malformed, 24 + 8, 0xFFFFFFFF)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/captures/upload",
+            files={"file": ("impossible-length.pcap", io.BytesIO(malformed), "application/octet-stream")},
+        )
+    assert response.status_code == 400
+    assert "captured length" in response.json()["detail"]
 
 
 @pytest.mark.asyncio

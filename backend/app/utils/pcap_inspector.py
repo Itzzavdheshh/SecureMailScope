@@ -9,6 +9,89 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 import dpkt
+import struct
+
+
+MAX_CAPTURE_READ_BYTES = 16 * 1024 * 1024
+
+
+class PcapReadError(ValueError):
+    """A malformed or truncated capture could not be read safely."""
+
+
+class BoundedCaptureFile:
+    """File adapter that bounds dpkt reads and validates classic-PCAP lengths."""
+
+    def __init__(self, file_obj, file_size: int, fmt: str):
+        self._file = file_obj
+        self._file_size = file_size
+        self._fmt = fmt
+        self.name = getattr(file_obj, "name", "capture")
+        self._snaplen = None
+        self._pcap_byte_order = None
+        self._expect_packet_header = False
+        self._pending_packet_data = None
+
+    def read(self, size: int = -1) -> bytes:
+        position = self._file.tell()
+        remaining = self._file_size - position
+        if remaining <= 0:
+            return b""
+        if size < 0 or size > MAX_CAPTURE_READ_BYTES:
+            raise PcapReadError(
+                f"Capture contains a block or packet larger than {MAX_CAPTURE_READ_BYTES} bytes."
+            )
+        if size > remaining:
+            raise PcapReadError("Capture is truncated inside a packet or block.")
+
+        try:
+            data = self._file.read(size)
+        except MemoryError as exc:
+            raise PcapReadError("Insufficient memory to read capture data safely.") from exc
+
+        if self._fmt == "pcap":
+            if position == 0 and len(data) == 24:
+                magic = data[:4]
+                self._pcap_byte_order = (
+                    "<" if magic in (b"\xd4\xc3\xb2\xa1", b"\x4d\x3c\xb2\xa1") else ">"
+                )
+                self._snaplen = struct.unpack(f"{self._pcap_byte_order}I", data[16:20])[0]
+                self._expect_packet_header = True
+            elif self._expect_packet_header and size == 16:
+                captured_len = struct.unpack(f"{self._pcap_byte_order}I", data[8:12])[0]
+                if captured_len > MAX_CAPTURE_READ_BYTES:
+                    raise PcapReadError(
+                        f"Packet captured length {captured_len} exceeds the safe limit."
+                    )
+                original_len = struct.unpack(f"{self._pcap_byte_order}I", data[12:16])[0]
+                if self._snaplen is not None and captured_len > self._snaplen:
+                    raise PcapReadError("Packet captured length exceeds the PCAP snaplen.")
+                if captured_len > original_len:
+                    raise PcapReadError("Packet captured length exceeds the original packet length.")
+                self._expect_packet_header = False
+                self._pending_packet_data = captured_len
+            elif self._pending_packet_data is not None:
+                if size != self._pending_packet_data:
+                    raise PcapReadError("Invalid packet length in PCAP record.")
+                self._pending_packet_data = None
+                self._expect_packet_header = True
+
+        return data
+
+    def tell(self) -> int:
+        return self._file.tell()
+
+
+def iter_capture_records(file_obj, fmt: str, file_size: int):
+    """Iterate dpkt records through a bounded reader, translating parser errors."""
+    safe_file = BoundedCaptureFile(file_obj, file_size, fmt)
+    try:
+        reader = dpkt.pcap.Reader(safe_file) if fmt == "pcap" else dpkt.pcapng.Reader(safe_file)
+        yield from reader
+    except PcapReadError:
+        raise
+    except Exception as exc:
+        raise PcapReadError(f"Malformed or truncated capture: {type(exc).__name__}.") from exc
 
 
 # PCAP and PCAPNG Magic Byte Signatures (First 4 bytes)
@@ -80,32 +163,20 @@ def inspect_pcap_file(file_path: Path) -> PcapMetadata:
     link_type: Optional[int] = None
 
     try:
+        file_size = file_path.stat().st_size
         with open(file_path, "rb") as f:
             if fmt == "pcap":
-                try:
-                    pcap_reader = dpkt.pcap.Reader(f)
-                    link_type = pcap_reader.datalink()
-                    for ts, pkt in pcap_reader:
-                        total_packets += 1
-                        if first_ts is None or ts < first_ts:
-                            first_ts = ts
-                        if last_ts is None or ts > last_ts:
-                            last_ts = ts
-                except Exception as e:
-                    # Partial read if file truncated
-                    pass
-            elif fmt == "pcapng":
-                try:
-                    pcapng_reader = dpkt.pcapng.Reader(f)
-                    for ts, pkt in pcapng_reader:
-                        total_packets += 1
-                        if first_ts is None or ts < first_ts:
-                            first_ts = ts
-                        if last_ts is None or ts > last_ts:
-                            last_ts = ts
-                except Exception as e:
-                    # Partial read if file truncated
-                    pass
+                global_header = f.read(24)
+                byte_order = "<" if global_header[:4] in (b"\xd4\xc3\xb2\xa1", b"\x4d\x3c\xb2\xa1") else ">"
+                if len(global_header) == 24:
+                    link_type = struct.unpack(f"{byte_order}I", global_header[20:24])[0]
+                f.seek(0)
+            for ts, _pkt in iter_capture_records(f, fmt, file_size):
+                total_packets += 1
+                if first_ts is None or ts < first_ts:
+                    first_ts = ts
+                if last_ts is None or ts > last_ts:
+                    last_ts = ts
 
         start_dt = (
             datetime.fromtimestamp(first_ts, tz=timezone.utc)
