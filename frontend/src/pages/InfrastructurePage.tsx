@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Server, RefreshCw } from 'lucide-react';
-import { infrastructureApi } from '../api/services';
+import { Server, RefreshCw, Activity, Clock } from 'lucide-react';
+import { infrastructureApi, sessionsApi } from '../api/services';
 import type { InfrastructureIdentityRead, PaginatedResponse } from '../types/api';
+import { useWorkspace } from '../context/WorkspaceContext';
 import { Pagination } from '../components/common/Pagination';
 import { LoadingState, EmptyState, ErrorState } from '../components/common/StateViews';
 import { FilterToolbar, type FilterOption } from '../components/common/FilterToolbar';
@@ -9,11 +10,13 @@ import { DataTable, type Column } from '../components/common/DataTable';
 import { InspectorPanel } from '../components/common/InspectorPanel';
 
 export const InfrastructurePage: React.FC = () => {
+  const { investigationName, activeCapture, activeJob } = useWorkspace();
   const [data, setData] = useState<PaginatedResponse<InfrastructureIdentityRead> | null>(null);
+  const [currentCaptureIps, setCurrentCaptureIps] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
-  const [selectedIdentity, setSelectedIdentity] = useState<InfrastructureIdentityRead | null>(null);
   const [searchVal, setSearchVal] = useState('');
   const [protocolFilter, setProtocolFilter] = useState('');
+  const [selectedIdentity, setSelectedIdentity] = useState<InfrastructureIdentityRead | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -21,8 +24,21 @@ export const InfrastructurePage: React.FC = () => {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const res = await infrastructureApi.list(currentPage, 25);
+      const res = await infrastructureApi.list(currentPage, 50);
       setData(res);
+
+      if (activeJob?.id) {
+        try {
+          const sessionsRes = await sessionsApi.list({ job_id: activeJob.id, page: 1, page_size: 100 });
+          const ips = new Set(sessionsRes.items.map((s) => s.server_ip));
+          setCurrentCaptureIps(ips);
+        } catch {
+          setCurrentCaptureIps(new Set());
+        }
+      } else {
+        setCurrentCaptureIps(new Set());
+      }
+
       if (res.items.length > 0 && !selectedIdentity) {
         setSelectedIdentity(res.items[0]);
       }
@@ -35,29 +51,29 @@ export const InfrastructurePage: React.FC = () => {
 
   useEffect(() => {
     fetchInfra(page);
-  }, [page]);
+  }, [page, activeJob, activeCapture]);
 
   const filterOptions: FilterOption[] = [
     {
-      key: 'protocol',
-      label: 'Protocol',
-      value: protocolFilter,
+      key: 'protocolFilter',
+      label: 'PROTOCOL',
       options: [
         { label: 'SMTP', value: 'SMTP' },
         { label: 'IMAP', value: 'IMAP' },
         { label: 'POP3', value: 'POP3' },
       ],
+      value: protocolFilter,
       onChange: (val) => setProtocolFilter(val),
     },
   ];
 
   const columns: Column<InfrastructureIdentityRead>[] = [
     {
-      key: 'endpoint',
-      header: 'SERVER ENDPOINT',
+      key: 'ip_address',
+      header: 'SERVER IP & PORT',
       render: (inf) => (
         <span className="mono" style={{ fontWeight: 700, color: 'var(--color-blue-700)' }}>
-          {inf.ip_address}:{inf.port}
+          {inf.ip_address}:{inf.port || 25}
         </span>
       ),
     },
@@ -65,7 +81,7 @@ export const InfrastructurePage: React.FC = () => {
       key: 'protocol',
       header: 'PROTO',
       width: '65px',
-      render: (inf) => <span className="mono">{inf.protocol}</span>,
+      render: (inf) => <span className="mono">{inf.protocol || 'SMTP'}</span>,
     },
     {
       key: 'hostname',
@@ -116,12 +132,45 @@ export const InfrastructurePage: React.FC = () => {
     return (
       inf.ip_address.toLowerCase().includes(term) ||
       (inf.hostname && inf.hostname.toLowerCase().includes(term)) ||
-      inf.identity_key.toLowerCase().includes(term)
+      (inf.identity_key && inf.identity_key.toLowerCase().includes(term))
     );
   });
 
+  const currentCaptureItems = filteredItems.filter(
+    (inf) => currentCaptureIps.has(inf.ip_address) || inf.last_evaluated_job_id === activeJob?.id
+  );
+
+  const historicalItems = filteredItems.filter(
+    (inf) => !currentCaptureIps.has(inf.ip_address) && inf.last_evaluated_job_id !== activeJob?.id
+  );
+
   return (
     <div className="workspace-page">
+      {/* Header Banner */}
+      <div className="card" style={{ marginBottom: '16px', background: 'var(--color-bg-primary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-blue-700)', letterSpacing: '0.05em' }}>
+              INFRASTRUCTURE IDENTITY SCOPING
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', marginTop: '2px' }}>
+              {investigationName}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+              Current Capture: <span className="mono" style={{ fontWeight: 600 }}>{activeCapture?.filename || 'None'}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ padding: '4px 8px', fontSize: '12px' }}
+            onClick={() => fetchInfra(page)}
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
+      </div>
+
       {/* Filter Toolbar */}
       <FilterToolbar
         searchPlaceholder="Filter IP, hostname, key..."
@@ -132,19 +181,9 @@ export const InfrastructurePage: React.FC = () => {
           setSearchVal('');
           setProtocolFilter('');
         }}
-        actionButton={
-          <button
-            type="button"
-            className="btn btn--ghost"
-            style={{ padding: '4px 8px', fontSize: '12px' }}
-            onClick={() => fetchInfra(page)}
-          >
-            <RefreshCw size={14} /> Refresh
-          </button>
-        }
       />
 
-      {/* Main Master/Detail Layout */}
+      {/* Main Content */}
       {isLoading ? (
         <LoadingState message="Resolving infrastructure identity baselines..." />
       ) : errorMsg ? (
@@ -157,17 +196,63 @@ export const InfrastructurePage: React.FC = () => {
         />
       ) : (
         <div className="master-detail-container">
-          {/* Master Table */}
-          <div className="master-pane">
-            <DataTable
-              columns={columns}
-              data={filteredItems}
-              keyExtractor={(inf) => inf.id}
-              selectedKey={selectedIdentity?.id}
-              onRowClick={(inf) => setSelectedIdentity(inf)}
-            />
+          <div className="master-pane" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-            <div style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+            {/* SECTION 1: CURRENT CAPTURE OBSERVATIONS */}
+            <div className="card" style={{ padding: 0 }}>
+              <div className="card-header" style={{ padding: '10px 16px', borderBottom: '1px solid var(--color-border)', backgroundColor: 'rgba(59, 130, 246, 0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={16} color="var(--color-blue-700)" />
+                  <span className="card-title" style={{ fontSize: '12px' }}>
+                    CURRENT CAPTURE OBSERVATIONS ({currentCaptureItems.length})
+                  </span>
+                </div>
+                <span className="badge badge--info" style={{ fontSize: '10px' }}>
+                  {activeCapture?.filename}
+                </span>
+              </div>
+
+              {currentCaptureItems.length === 0 ? (
+                <div style={{ padding: '16px', textTransform: 'uppercase', fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>
+                  NO INFRASTRUCTURE OBSERVED IN CURRENT CAPTURE
+                </div>
+              ) : (
+                <DataTable
+                  columns={columns}
+                  data={currentCaptureItems}
+                  keyExtractor={(inf) => inf.id}
+                  selectedKey={selectedIdentity?.id}
+                  onRowClick={(inf) => setSelectedIdentity(inf)}
+                />
+              )}
+            </div>
+
+            {/* SECTION 2: HISTORICAL OBSERVATIONS */}
+            {historicalItems.length > 0 && (
+              <div className="card" style={{ padding: 0 }}>
+                <div className="card-header" style={{ padding: '10px 16px', borderBottom: '1px solid var(--color-border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Clock size={16} color="var(--color-text-muted)" />
+                    <span className="card-title" style={{ fontSize: '12px' }}>
+                      HISTORICAL / INVESTIGATION-WIDE OBSERVATIONS ({historicalItems.length})
+                    </span>
+                  </div>
+                  <span className="badge badge--warning" style={{ fontSize: '10px' }}>
+                    OTHER CAPTURES IN INVESTIGATION
+                  </span>
+                </div>
+
+                <DataTable
+                  columns={columns}
+                  data={historicalItems}
+                  keyExtractor={(inf) => inf.id}
+                  selectedKey={selectedIdentity?.id}
+                  onRowClick={(inf) => setSelectedIdentity(inf)}
+                />
+              </div>
+            )}
+
+            <div style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: '4px' }}>
               <Pagination
                 page={data.page}
                 totalPages={data.total_pages}
@@ -181,8 +266,8 @@ export const InfrastructurePage: React.FC = () => {
           {/* Right Inspector Panel */}
           {selectedIdentity && (
             <InspectorPanel
-              title={`IDENTITY: ${selectedIdentity.ip_address}:${selectedIdentity.port}`}
-              subtitle={`${selectedIdentity.protocol} · Hostname: ${selectedIdentity.hostname || 'None'}`}
+              title={`IDENTITY: ${selectedIdentity.ip_address}:${selectedIdentity.port || 25}`}
+              subtitle={`${selectedIdentity.protocol || 'SMTP'} • Hostname: ${selectedIdentity.hostname || 'None'}`}
               onClose={() => setSelectedIdentity(null)}
             >
               <div className="inspector-section">

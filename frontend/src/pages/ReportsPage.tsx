@@ -21,7 +21,7 @@ export const ReportsPage: React.FC = () => {
     );
   }
 
-  const hasSessions = (activeJob.session_count || 0) > 0;
+  const hasSessions = (activeJob.total_sessions ?? 0) > 0;
 
   const jsonUrl = reportsApi.getJobReportUrl(activeJob.id, 'json');
   const htmlUrl = reportsApi.getJobReportUrl(activeJob.id, 'html');

@@ -18,7 +18,7 @@ import { Badge, SeverityBadge, RiskBandBadge } from '../components/common/Badge'
 import { LoadingState, EmptyState, ErrorState } from '../components/common/StateViews';
 
 export const OverviewPage: React.FC = () => {
-  const { activeCapture, activeJob } = useWorkspace();
+  const { investigationName, capturesList, activeCapture, activeJob } = useWorkspace();
   const [riskData, setRiskData] = useState<RiskSummaryResponse | null>(null);
   const [recentFindings, setRecentFindings] = useState<FindingRead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,6 +108,31 @@ export const OverviewPage: React.FC = () => {
 
   return (
     <div className="workspace-page-scrollable">
+      {/* Investigation Context Banner */}
+      <div className="card" style={{ marginBottom: '16px', background: 'var(--color-bg-primary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-blue-700)', letterSpacing: '0.05em' }}>
+              INVESTIGATION WORKSPACE OVERVIEW
+            </div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)', marginTop: '2px' }}>
+              {investigationName}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+              Captures in Registry: <span className="mono" style={{ fontWeight: 600 }}>{capturesList.length}</span> • Currently Analyzing: <span className="mono" style={{ fontWeight: 700, color: 'var(--color-blue-700)' }}>{activeCapture?.filename || 'No Capture Selected'}</span>
+            </div>
+          </div>
+          {activeCapture && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)' }}>POSTURE SCORE</div>
+              <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: (activeJob?.overall_risk_score || 0) >= 40 ? 'var(--color-high)' : 'var(--color-success)' }}>
+                {activeJob?.overall_risk_score !== null && activeJob?.overall_risk_score !== undefined ? `${activeJob.overall_risk_score.toFixed(1)} / 100` : 'UNEVALUATED'}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Top Metric Strip */}
       <MetricStrip metrics={metrics} />
 
