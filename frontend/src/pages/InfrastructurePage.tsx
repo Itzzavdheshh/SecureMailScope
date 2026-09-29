@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, RefreshCw, Activity, Clock } from 'lucide-react';
+import { Server, Activity, Clock } from 'lucide-react';
 import { infrastructureApi, sessionsApi } from '../api/services';
 import type { InfrastructureIdentityRead, PaginatedResponse } from '../types/api';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -10,7 +10,7 @@ import { DataTable, type Column } from '../components/common/DataTable';
 import { InspectorPanel } from '../components/common/InspectorPanel';
 
 export const InfrastructurePage: React.FC = () => {
-  const { investigationName, activeCapture, activeJob } = useWorkspace();
+  const { activeCapture, activeJob } = useWorkspace();
   const [data, setData] = useState<PaginatedResponse<InfrastructureIdentityRead> | null>(null);
   const [currentCaptureIps, setCurrentCaptureIps] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
@@ -146,31 +146,6 @@ export const InfrastructurePage: React.FC = () => {
 
   return (
     <div className="workspace-page">
-      {/* Header Banner */}
-      <div className="page-context-header">
-        <div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-blue-700)', letterSpacing: '0.05em' }}>
-              INFRASTRUCTURE IDENTITY SCOPING
-            </div>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', marginTop: '2px' }}>
-              {investigationName}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-              Current Capture: <span className="mono" style={{ fontWeight: 600 }}>{activeCapture?.filename || 'None'}</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            style={{ padding: '4px 8px', fontSize: '12px' }}
-            onClick={() => fetchInfra(page)}
-          >
-            <RefreshCw size={14} /> Refresh
-          </button>
-        </div>
-      </div>
-
       {/* Filter Toolbar */}
       <FilterToolbar
         searchPlaceholder="Filter IP, hostname, key..."

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderCheck, Play, RefreshCw } from 'lucide-react';
+import { FolderCheck, Play } from 'lucide-react';
 import { useWorkspace, type EnrichedCapture } from '../context/WorkspaceContext';
 import { FilterToolbar, type FilterOption } from '../components/common/FilterToolbar';
 import { DataTable, type Column } from '../components/common/DataTable';
@@ -8,7 +8,7 @@ import { Pagination } from '../components/common/Pagination';
 import { LoadingState, EmptyState } from '../components/common/StateViews';
 
 export const CaptureRegistryPage: React.FC = () => {
-  const { investigationName, capturesList, activeCapture, isLoadingCaptures, refreshCaptures, selectCaptureById } = useWorkspace();
+  const { capturesList, activeCapture, isLoadingCaptures, selectCaptureById } = useWorkspace();
   const [searchVal, setSearchVal] = useState('');
   const [bandFilter, setBandFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -151,31 +151,6 @@ export const CaptureRegistryPage: React.FC = () => {
 
   return (
     <div className="workspace-page">
-      {/* Header Banner */}
-      <div className="page-context-header">
-        <div>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-blue-700)', letterSpacing: '0.05em' }}>
-              INVESTIGATION CAPTURE REGISTRY
-            </div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)', marginTop: '2px' }}>
-              {investigationName}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-              Total Captures: {capturesList.length} • Active Workspace: {activeCapture?.filename || 'None'}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            style={{ padding: '6px 12px', fontSize: '12px', gap: '6px' }}
-            onClick={() => refreshCaptures()}
-          >
-            <RefreshCw size={14} /> Refresh Inventory
-          </button>
-        </div>
-      </div>
-
       {/* Filter Toolbar */}
       <FilterToolbar
         searchPlaceholder="Search filename, SHA-256 hash, ID..."
