@@ -103,12 +103,14 @@ def load_risk_weights_config(rules_dir: Optional[Path] = None) -> RiskWeightsCon
         conf_f = raw_data.get("confidence_factors", {})
         ref_max = raw_data.get("normalization", {}).get("reference_max", 30.0)
         drift_b = raw_data.get("drift_bonus", 2.0)
+        bands = raw_data.get("severity_bands", {})
 
         return RiskWeightsConfig(
             severity_weights=sev_w if sev_w else RiskWeightsConfig().severity_weights,
             confidence_factors=conf_f if conf_f else RiskWeightsConfig().confidence_factors,
             reference_max=float(ref_max),
             drift_bonus=float(drift_b),
+            severity_bands=bands if bands else RiskWeightsConfig().severity_bands,
         )
     except Exception as exc:
         log.error("risk_weights_load_failed", error=str(exc))

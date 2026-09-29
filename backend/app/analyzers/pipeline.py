@@ -458,7 +458,7 @@ async def run_pipeline(
 
         # Persist derived risk band so report generator (raw ORM path) always has it
         from app.rules.risk_calculator import calculate_job_risk_band
-        job_risk_band = calculate_job_risk_band(job_risk)
+        job_risk_band = calculate_job_risk_band(job_risk, risk_config)
 
         # Update AnalysisJob completed state
         job.status = JobStatus.COMPLETED

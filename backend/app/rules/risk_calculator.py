@@ -59,17 +59,7 @@ def calculate_session_risk_score(
 
     normalized = min(100.0, round((raw_score / cfg.reference_max) * 100.0, 1))
 
-    # Map to RiskBand enum
-    if normalized >= 80.0:
-        band = RiskBand.CRITICAL
-    elif normalized >= 60.0:
-        band = RiskBand.HIGH
-    elif normalized >= 40.0:
-        band = RiskBand.MEDIUM
-    elif normalized >= 20.0:
-        band = RiskBand.LOW
-    else:
-        band = RiskBand.SECURE
+    band = _risk_band_for_score(normalized, cfg)
 
     return normalized, band
 
@@ -91,14 +81,14 @@ def calculate_job_risk_score(session_scores: List[float]) -> float:
     return job_score
 
 
-def calculate_job_risk_band(score: float) -> RiskBand:
-    if score >= 80.0:
-        return RiskBand.CRITICAL
-    elif score >= 60.0:
-        return RiskBand.HIGH
-    elif score >= 40.0:
-        return RiskBand.MEDIUM
-    elif score >= 20.0:
-        return RiskBand.LOW
-    else:
-        return RiskBand.SECURE
+def _risk_band_for_score(score: float, config: RiskWeightsConfig) -> RiskBand:
+    applicable = [
+        (threshold.get("min", 0.0), RiskBand(name))
+        for name, threshold in config.severity_bands.items()
+        if name in RiskBand.__members__ and score >= threshold.get("min", 0.0)
+    ]
+    return max(applicable, key=lambda item: item[0])[1] if applicable else RiskBand.SECURE
+
+
+def calculate_job_risk_band(score: float, config: Optional[RiskWeightsConfig] = None) -> RiskBand:
+    return _risk_band_for_score(score, config or RiskWeightsConfig())

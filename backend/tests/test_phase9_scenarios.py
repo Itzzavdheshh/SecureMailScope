@@ -184,6 +184,7 @@ async def test_scenario_07_starttls_rejected():
             find_res = await session.execute(select(Finding).where(Finding.job_id == job_id))
             findings = find_res.scalars().all()
             assert any(f.rule_id == "STLS-002" for f in findings)
+            assert not any(f.rule_id == "CRYPT-010" for f in findings)
 
 
 @pytest.mark.asyncio

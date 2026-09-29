@@ -347,6 +347,7 @@ def test_15_self_signed_certificate_finding():
 def test_16_starttls_rejected_finding():
     """16. STARTTLS rejected finding."""
     sess, tls, cert, chain, stls = create_dummy_session()
+    sess.tls_handshake = None
     stls.observed_state = StarttlsStatus.REJECTED
     session_copy = sess
 
@@ -355,6 +356,7 @@ def test_16_starttls_rejected_finding():
 
     found_ids = [f.rule_id for f in findings]
     assert "STLS-002" in found_ids
+    assert "CRYPT-010" not in found_ids
 
 
 def test_17_starttls_accepted_without_tls_finding():
@@ -440,9 +442,37 @@ def test_23_session_risk_calculation():
     cfg = RiskWeightsConfig()
     score, band = calculate_session_risk_score([f1, f2], cfg)
 
-    # raw = 10.0 + 7.0 = 17.0, normalized = 17.0 / 30.0 * 100 = 56.7
-    assert score == 56.7
-    assert band == "MEDIUM"
+    # raw = 18.0 + 7.0 = 25.0, normalized = 25.0 / 30.0 * 100 = 83.3
+    assert score == 83.3
+    assert band == "CRITICAL"
+
+
+def test_risk_weights_bands_confidence_and_insufficient_evidence():
+    cfg = RiskWeightsConfig()
+    yaml_cfg = load_risk_weights_config()
+    assert yaml_cfg.severity_weights == cfg.severity_weights
+    assert yaml_cfg.confidence_factors == cfg.confidence_factors
+    assert {key: value["min"] for key, value in yaml_cfg.severity_bands.items()} == {
+        key: value["min"] for key, value in cfg.severity_bands.items()
+    }
+
+    def findings(severity, count):
+        return [
+            Finding(
+                rule_id=f"R{index}", title="Issue",
+                category=FindingCategory.TLS_CRYPTO, severity=severity,
+                confidence=Confidence.HIGH, description="desc",
+            )
+            for index in range(count)
+        ]
+
+    assert calculate_session_risk_score([], cfg) == (0.0, "SECURE")
+    assert calculate_session_risk_score(findings(Severity.LOW, 4), cfg) == (20.0, "LOW")
+    assert calculate_session_risk_score(findings(Severity.MEDIUM, 3), cfg) == (40.0, "MEDIUM")
+    assert calculate_session_risk_score(findings(Severity.CRITICAL, 1), cfg) == (60.0, "HIGH")
+    assert calculate_session_risk_score(findings(Severity.CRITICAL, 1) + findings(Severity.HIGH, 1), cfg) == (83.3, "CRITICAL")
+    assert compute_finding_contribution(Severity.CRITICAL, "INSUFFICIENT_EVIDENCE", cfg) == 0.0
+    assert compute_finding_contribution(Severity.HIGH, Confidence.MEDIUM, cfg) == 6.3
 
 
 def test_24_job_risk_calculation():

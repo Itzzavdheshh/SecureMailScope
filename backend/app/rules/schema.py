@@ -52,7 +52,7 @@ class RuleSet(BaseModel):
 class RiskWeightsConfig(BaseModel):
     severity_weights: Dict[str, float] = Field(
         default_factory=lambda: {
-            "CRITICAL": 10.0,
+            "CRITICAL": 18.0,
             "HIGH": 7.0,
             "MEDIUM": 4.0,
             "LOW": 1.5,
@@ -61,11 +61,20 @@ class RiskWeightsConfig(BaseModel):
     )
     confidence_factors: Dict[str, float] = Field(
         default_factory=lambda: {
-            "OBSERVED": 1.0,
-            "ANALYZED": 0.9,
-            "INFERRED": 0.7,
+            "HIGH": 1.0,
+            "MEDIUM": 0.9,
+            "LOW": 0.7,
             "INSUFFICIENT_EVIDENCE": 0.0,
         }
     )
     reference_max: float = 30.0
     drift_bonus: float = 2.0
+    severity_bands: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "SECURE": {"min": 0.0},
+            "LOW": {"min": 20.0},
+            "MEDIUM": {"min": 40.0},
+            "HIGH": {"min": 60.0},
+            "CRITICAL": {"min": 80.0},
+        }
+    )

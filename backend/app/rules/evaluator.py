@@ -124,8 +124,13 @@ def get_session_attribute(
         layer = "TLS"
 
     elif field_name == "version_downgrade_detected":
-        val = stls.is_downgrade_detected if stls else False
-        frame = stls.command_in_frame if stls else None
+        val = bool(
+            stls
+            and stls.is_downgrade_detected
+            and tls
+            and tls.negotiated_tls_version
+        )
+        frame = tls.server_hello_frame if val and tls else None
         layer = "STARTTLS"
 
     # Certificate Attributes

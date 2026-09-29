@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-28T16:43:41.556662+00:00",
+  "generated_at": "2026-09-29T17:47:41.069606+00:00",
   "total_scenarios": 10,
   "scenarios": [
     {
@@ -15,12 +15,14 @@
       "expected_findings": [
         "CERT-007"
       ],
-      "actual_findings": [
+      "observed_findings": [
         "CERT-007"
       ],
-      "verified_risk_score": 13.3,
+      "observed_risk_score": 13.3,
+      "observed_risk_band": "SECURE",
+      "observed_analysis_status": "COMPLETED",
       "expected_drift": "Establishes initial secure baseline profile.",
-      "verified_drift_events": []
+      "observed_drift_events": []
     },
     {
       "filename": "02_deprecated_tls.pcap",
@@ -35,17 +37,20 @@
       "expected_findings": [
         "CRYPT-001",
         "CRYPT-004",
-        "CERT-005"
+        "CERT-005",
+        "CERT-006"
       ],
-      "actual_findings": [
+      "observed_findings": [
         "CERT-005",
         "CERT-006",
         "CRYPT-001",
         "CRYPT-004"
       ],
-      "verified_risk_score": 65.0,
+      "observed_risk_score": 65.0,
+      "observed_risk_band": "HIGH",
+      "observed_analysis_status": "COMPLETED",
       "expected_drift": "Establishes deprecated TLS baseline.",
-      "verified_drift_events": []
+      "observed_drift_events": []
     },
     {
       "filename": "03_weak_cipher.pcap",
@@ -60,17 +65,20 @@
       "expected_findings": [
         "CRYPT-005",
         "CRYPT-004",
-        "CERT-005"
+        "CERT-005",
+        "CERT-006"
       ],
-      "actual_findings": [
+      "observed_findings": [
         "CERT-005",
         "CERT-006",
         "CRYPT-004",
         "CRYPT-005"
       ],
-      "verified_risk_score": 75.0,
+      "observed_risk_score": 100.0,
+      "observed_risk_band": "CRITICAL",
+      "observed_analysis_status": "COMPLETED",
       "expected_drift": "Establishes weak cipher baseline.",
-      "verified_drift_events": []
+      "observed_drift_events": []
     },
     {
       "filename": "04_expired_certificate.pcap",
@@ -84,17 +92,19 @@
       "expected_cipher": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
       "expected_findings": [
         "CERT-001",
-        "CERT-005"
-      ],
-      "actual_findings": [
-        "CERT-001",
-        "CERT-002",
         "CERT-005",
         "CERT-006"
       ],
-      "verified_risk_score": 55.0,
+      "observed_findings": [
+        "CERT-001",
+        "CERT-005",
+        "CERT-006"
+      ],
+      "observed_risk_score": 41.7,
+      "observed_risk_band": "MEDIUM",
+      "observed_analysis_status": "COMPLETED",
       "expected_drift": "Establishes expired cert baseline.",
-      "verified_drift_events": []
+      "observed_drift_events": []
     },
     {
       "filename": "05_starttls_rejected.pcap",
@@ -109,13 +119,14 @@
       "expected_findings": [
         "STLS-002"
       ],
-      "actual_findings": [
-        "STLS-002",
-        "CRYPT-010"
+      "observed_findings": [
+        "STLS-002"
       ],
-      "verified_risk_score": 46.7,
+      "observed_risk_score": 60.0,
+      "observed_risk_band": "HIGH",
+      "observed_analysis_status": "COMPLETED",
       "expected_drift": "Establishes rejected STARTTLS baseline.",
-      "verified_drift_events": []
+      "observed_drift_events": []
     },
     {
       "filename": "06_truncated_tls.pcap",
@@ -128,10 +139,12 @@
       "expected_tls": "N/A",
       "expected_cipher": "N/A",
       "expected_findings": [],
-      "actual_findings": [],
-      "verified_risk_score": 0.0,
+      "observed_findings": [],
+      "observed_risk_score": 0.0,
+      "observed_risk_band": "SECURE",
+      "observed_analysis_status": "COMPLETED",
       "expected_drift": "Incomplete baseline state.",
-      "verified_drift_events": []
+      "observed_drift_events": []
     },
     {
       "filename": "07_multi_session_smtp.pcap",
@@ -147,20 +160,22 @@
         "CRYPT-001",
         "CRYPT-004",
         "CERT-005",
+        "CERT-006",
         "STLS-002"
       ],
-      "actual_findings": [
+      "observed_findings": [
         "CERT-005",
         "CERT-005",
         "CERT-006",
         "CRYPT-001",
         "CRYPT-004",
-        "STLS-002",
-        "CRYPT-010"
+        "STLS-002"
       ],
-      "verified_risk_score": 58.0,
+      "observed_risk_score": 59.3,
+      "observed_risk_band": "MEDIUM",
+      "observed_analysis_status": "COMPLETED",
       "expected_drift": "Establishes baselines for multiple hosts.",
-      "verified_drift_events": []
+      "observed_drift_events": []
     },
     {
       "filename": "08_baseline_secure.pcap",
@@ -173,15 +188,18 @@
       "expected_tls": "TLS 1.3",
       "expected_cipher": "TLS_AES_256_GCM_SHA384",
       "expected_findings": [
-        "CERT-005"
-      ],
-      "actual_findings": [
         "CERT-005",
         "CERT-006"
       ],
-      "verified_risk_score": 18.3,
-      "expected_drift": "Establishes baseline profile for 198.51.100.30.",
-      "verified_drift_events": []
+      "observed_findings": [
+        "CERT-005",
+        "CERT-006"
+      ],
+      "observed_risk_score": 18.3,
+      "observed_risk_band": "SECURE",
+      "observed_analysis_status": "COMPLETED",
+      "expected_drift": "Adds one provisional observation; three matching observations are required to establish a baseline.",
+      "observed_drift_events": []
     },
     {
       "filename": "09_baseline_downgrade.pcap",
@@ -196,17 +214,20 @@
       "expected_findings": [
         "CRYPT-001",
         "CRYPT-004",
-        "CERT-005"
+        "CERT-005",
+        "CERT-006"
       ],
-      "actual_findings": [
+      "observed_findings": [
         "CERT-005",
         "CERT-006",
         "CRYPT-001",
         "CRYPT-004"
       ],
-      "verified_risk_score": 65.0,
-      "expected_drift": "Detects DriftEvent: TLS_VERSION_DOWNGRADED against baseline.",
-      "verified_drift_events": []
+      "observed_risk_score": 65.0,
+      "observed_risk_band": "HIGH",
+      "observed_analysis_status": "COMPLETED",
+      "expected_drift": "After three matching baseline observations, detects TLS_VERSION_DOWNGRADED.",
+      "observed_drift_events": []
     },
     {
       "filename": "10_certificate_rotation.pcap",
@@ -219,15 +240,18 @@
       "expected_tls": "TLS 1.2",
       "expected_cipher": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
       "expected_findings": [
-        "CERT-005"
-      ],
-      "actual_findings": [
         "CERT-005",
         "CERT-006"
       ],
-      "verified_risk_score": 18.3,
-      "expected_drift": "Maintains stable host identity while registering CERTIFICATE_CHANGED profile update.",
-      "verified_drift_events": []
+      "observed_findings": [
+        "CERT-005",
+        "CERT-006"
+      ],
+      "observed_risk_score": 18.3,
+      "observed_risk_band": "SECURE",
+      "observed_analysis_status": "COMPLETED",
+      "expected_drift": "Maintains the stable identity key; certificate drift requires an established baseline.",
+      "observed_drift_events": []
     }
   ]
 }
