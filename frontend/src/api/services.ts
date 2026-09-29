@@ -20,10 +20,33 @@ export const capturesApi = {
   upload: async (file: File): Promise<CaptureUploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await apiClient.post<CaptureUploadResponse>('/captures', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return res.data;
+    try {
+      const res = await apiClient.post<CaptureUploadResponse>('/captures', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data;
+    } catch (err: any) {
+      if (err.response?.status === 409 && err.response?.data?.detail?.job_id) {
+        const detail = err.response.data.detail;
+        return {
+          id: detail.existing_capture_id || detail.id,
+          filename: detail.filename,
+          file_path: detail.file_path || '',
+          file_size_bytes: detail.file_size_bytes || 0,
+          sha256_hash: detail.sha256_hash || '',
+          total_packets: detail.total_packets || 0,
+          capture_start_time: detail.capture_start_time || null,
+          capture_end_time: detail.capture_end_time || null,
+          status: detail.status || 'UPLOADED',
+          created_at: detail.created_at || new Date().toISOString(),
+          updated_at: detail.updated_at || new Date().toISOString(),
+          job_id: detail.job_id,
+          job_status: detail.job_status || 'PENDING',
+          message: detail.message || 'Duplicate capture recognized. Ready for analysis.',
+        };
+      }
+      throw err;
+    }
   },
 
   list: async (page = 1, pageSize = 50): Promise<PaginatedResponse<CaptureRead>> => {

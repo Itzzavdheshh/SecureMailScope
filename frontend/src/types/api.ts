@@ -68,15 +68,15 @@ export interface AnalysisJobRead {
   id: string;
   capture_id: string;
   status: string;
-  start_time?: string | null;
+  started_at?: string | null;
   completed_at?: string | null;
   error_message?: string | null;
   overall_risk_score?: number | null;
   risk_band?: RiskBand | null;
-  session_count: number;
-  finding_count: number;
+  total_sessions: number;
+  total_findings: number;
+  options_json?: string | null;
   created_at: string;
-  updated_at: string;
 }
 
 export interface StarttlsStateRead {
@@ -201,18 +201,18 @@ export interface DriftEventRead {
 export interface InfrastructureIdentityRead {
   id: string;
   ip_address: string;
-  port: number;
-  protocol: ProtocolType;
+  port?: number | null;
+  protocol?: string | null;
   hostname?: string | null;
-  identity_key: string;
+  organization?: string | null;
+  identity_key?: string | null;
   first_seen_at: string;
   last_seen_at: string;
   last_evaluated_job_id?: string | null;
   current_risk_score?: number | null;
+  current_risk_band?: RiskBand | null;
   active_profile_json?: string | null;
   drift_events?: DriftEventRead[] | null;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface TimelineEventRead {
