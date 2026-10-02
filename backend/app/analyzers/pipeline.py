@@ -1,0 +1,522 @@
+"""
+Pipeline Orchestrator for Phase 3, Phase 4, & Phase 5.
+Executes PCAP frame streaming, TCP flow grouping, stream reassembly,
+email protocol detection (SMTP/IMAP/POP3), STARTTLS negotiation tracking,
+TLS record layer parsing, ClientHello/ServerHello parameter extraction,
+JA3/JA3S fingerprinting, X.509 certificate parsing, rule engine evaluation,
+transparent risk score calculation, and DB persistence.
+"""
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List, Optional
+import uuid
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
+
+from app.models import (
+    Capture,
+    AnalysisJob,
+    EmailSession,
+    StarttlsState,
+    TlsHandshake,
+    Certificate,
+    CertificateChain,
+    Finding,
+    Evidence,
+    InfrastructureIdentity,
+    DriftEvent,
+    TimelineEvent,
+    JobStatus,
+    StarttlsStatus,
+)
+
+from app.analyzers.identity import construct_identity_key, build_cryptographic_profile
+from app.analyzers.baseline import global_baseline_store, BaselineStatus
+from app.analyzers.drift_detector import compare_profiles_for_drift
+from app.analyzers.timeline_builder import build_timeline_events_for_session
+from app.behavioral.engine import BehavioralAnalysisEngine
+from app.models.behavioral import BehavioralAnalysis
+
+
+from app.analyzers.pcap_reader import stream_pcap_frames, PacketRecord
+from app.analyzers.tcp_flow import TcpFlowManager
+from app.analyzers.tcp_reassembler import reassemble_packet_list
+from app.analyzers.protocol_detector import classify_email_flow
+from app.analyzers.starttls_detector import detect_starttls_events
+from app.analyzers.tls_parser import (
+    parse_tls_records,
+    parse_client_hello,
+    parse_server_hello,
+    parse_certificate_msg,
+    ClientHelloParsed,
+    ServerHelloParsed,
+    TlsCertificateParsed,
+)
+from app.analyzers.cert_analyzer import analyze_certificate_chain
+from app.analyzers.starttls_state_machine import evaluate_starttls_state
+from app.rules import (
+    load_rules_from_directory,
+    load_risk_weights_config,
+    evaluate_rules_for_session,
+    calculate_session_risk_score,
+    calculate_job_risk_score,
+)
+
+log = structlog.get_logger(__name__)
+
+
+async def run_phase3_pipeline(
+    capture: Capture, job: AnalysisJob, db: AsyncSession
+) -> List[EmailSession]:
+    """Alias for complete pipeline execution."""
+    return await run_pipeline(capture, job, db)
+
+
+async def run_pipeline(
+    capture: Capture, job: AnalysisJob, db: AsyncSession
+) -> List[EmailSession]:
+    """
+    Run complete PCAP analysis pipeline through Phase 5.
+
+    Updates AnalysisJob status from PENDING -> RUNNING -> COMPLETED (or FAILED on error).
+    Evaluates security rules, generates findings/evidence, and computes risk scores.
+    """
+    pcap_path = Path(capture.file_path)
+    if not pcap_path.exists():
+        job.status = JobStatus.FAILED
+        job.error_message = f"Capture file not found at path '{capture.file_path}'"
+        await db.commit()
+        return []
+
+    job.status = JobStatus.RUNNING
+    job.started_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    try:
+        # Load Rule Definitions and Risk Weights Configuration
+        active_rules = load_rules_from_directory()
+        risk_config = load_risk_weights_config()
+
+        # Snapshot the scoring configuration with this immutable analysis result.
+        try:
+            job_options = json.loads(job.options_json) if job.options_json else {}
+        except (TypeError, json.JSONDecodeError):
+            job_options = {"previous_options_json": job.options_json}
+        if not isinstance(job_options, dict):
+            job_options = {"analysis_options": job_options}
+        job_options["risk_scoring"] = risk_config.model_dump()
+        job.options_json = json.dumps(job_options, sort_keys=True)
+        await db.commit()
+
+        # Step 1: Stream frames from PCAP
+        flow_manager = TcpFlowManager()
+        for pkt in stream_pcap_frames(pcap_path, capture_id=capture.id):
+            flow_manager.process_packet(pkt)
+
+        created_sessions: List[EmailSession] = []
+        session_risk_scores: List[float] = []
+        session_index = 0
+        total_finding_count = 0
+
+        # Step 2: Iterate TCP flows and process each conversation
+        for key, flow in flow_manager.flows.items():
+            session_index += 1
+            c2s_stream = reassemble_packet_list(flow.c2s_packets, direction="c2s")
+            s2c_stream = reassemble_packet_list(flow.s2c_packets, direction="s2c")
+
+            # Step 3: Classify email protocol
+            classification = classify_email_flow(flow, c2s_stream, s2c_stream)
+
+            # Step 4: Initial STARTTLS event detection
+            starttls_res = detect_starttls_events(
+                classification.protocol, c2s_stream, s2c_stream
+            )
+
+            # Step 5: TLS Handshake & Certificate Extraction across flow packets
+            client_hello: Optional[ClientHelloParsed] = None
+            server_hello: Optional[ServerHelloParsed] = None
+            cert_msg: Optional[TlsCertificateParsed] = None
+
+            all_flow_packets = sorted(
+                flow.c2s_packets + flow.s2c_packets, key=lambda p: p.frame_number
+            )
+
+            for pkt in all_flow_packets:
+                if not pkt.payload:
+                    continue
+                records = parse_tls_records(pkt.payload, pkt.frame_number, pkt.timestamp)
+                for rec in records:
+                    if rec.content_type == 22:  # Handshake record
+                        if not client_hello:
+                            ch_try = parse_client_hello(rec.payload, rec.frame_number, rec.timestamp)
+                            if ch_try:
+                                client_hello = ch_try
+
+                        if not server_hello:
+                            sh_try = parse_server_hello(rec.payload, rec.frame_number, rec.timestamp)
+                            if sh_try:
+                                server_hello = sh_try
+
+                        if not cert_msg:
+                            cm_try = parse_certificate_msg(rec.payload, rec.frame_number, rec.timestamp)
+                            if cm_try:
+                                cert_msg = cm_try
+
+            tls_observed = (client_hello is not None or server_hello is not None)
+            plaintext_after_starttls_accept = _plaintext_after_starttls_accept(
+                c2s_stream.segments + s2c_stream.segments,
+                starttls_res.response_frame,
+            ) if starttls_res.status == StarttlsStatus.ACCEPTED and not tls_observed else False
+
+            # Step 6: Evaluate Complete STARTTLS State Machine
+            st_eval = evaluate_starttls_state(
+                phase3_status=starttls_res.status,
+                advertised_frame=starttls_res.advertised_frame,
+                command_frame=starttls_res.command_frame,
+                response_frame=starttls_res.response_frame,
+                response_code=starttls_res.response_code,
+                tls_handshake_observed=tls_observed,
+                plaintext_after_accepted=plaintext_after_starttls_accept,
+            )
+
+            # Step 7: Build EmailSession record
+            start_dt = (
+                datetime.fromtimestamp(flow.start_time, tz=timezone.utc)
+                if flow.start_time > 0
+                else None
+            )
+            end_dt = (
+                datetime.fromtimestamp(flow.end_time, tz=timezone.utc)
+                if flow.end_time > 0
+                else None
+            )
+
+            email_sess = EmailSession(
+                job_id=job.id,
+                session_index=session_index,
+                client_ip=flow.client_ip,
+                client_port=flow.client_port,
+                server_ip=flow.server_ip,
+                server_port=flow.server_port,
+                protocol=classification.protocol,
+                is_tls_implicit=classification.is_tls_implicit or (tls_observed and starttls_res.status == StarttlsStatus.NOT_OBSERVED),
+                starttls_state=st_eval.status,
+                start_time=start_dt,
+                end_time=end_dt,
+                packet_count=flow.packet_count,
+                bytes_transferred=flow.bytes_transferred,
+                banner=classification.banner,
+                hostname=client_hello.sni_hostname if client_hello else None,
+            )
+            db.add(email_sess)
+            await db.flush()  # Generate email_sess.id
+
+            # Step 8: Persist StarttlsState record
+            st_state: Optional[StarttlsState] = None
+            if st_eval.status != StarttlsStatus.NOT_OBSERVED or starttls_res.advertised_frame:
+                st_state = StarttlsState(
+                    session_id=email_sess.id,
+                    observed_state=st_eval.status,
+                    advertised_in_frame=st_eval.advertised_in_frame,
+                    command_in_frame=st_eval.command_in_frame,
+                    response_in_frame=st_eval.response_in_frame,
+                    response_code=st_eval.response_code,
+                    is_downgrade_detected=st_eval.is_downgrade_detected,
+                    state_details_json=json.dumps({"details": st_eval.details}),
+                )
+                db.add(st_state)
+
+            # Step 9: Persist TlsHandshake record if TLS observed
+            tls_db: Optional[TlsHandshake] = None
+            if tls_observed:
+                offered_versions_str = (
+                    json.dumps([parse_client_hello(b"").legacy_version_name] if False else [c for c in [client_hello.legacy_version_name] + [f"0x{v:04x}" for v in client_hello.supported_versions]])
+                    if client_hello
+                    else None
+                )
+
+                handshake_status = "COMPLETED" if server_hello else "ATTEMPTED"
+
+                tls_db = TlsHandshake(
+                    session_id=email_sess.id,
+                    client_hello_frame=client_hello.frame_number if client_hello else None,
+                    server_hello_frame=server_hello.frame_number if server_hello else None,
+                    offered_tls_versions=offered_versions_str,
+                    negotiated_tls_version=server_hello.negotiated_tls_version if server_hello else None,
+                    client_cipher_suites=json.dumps(client_hello.cipher_suites) if client_hello else None,
+                    negotiated_cipher_suite=server_hello.cipher_name if server_hello else None,
+                    key_exchange_group=server_hello.key_exchange if server_hello else None,
+                    is_forward_secrecy=server_hello.is_forward_secrecy if server_hello else None,
+                    sni_hostname=client_hello.sni_hostname if client_hello else None,
+                    alpn_protocols=json.dumps(client_hello.alpn_protocols) if client_hello else None,
+                    handshake_status=handshake_status,
+                    raw_client_hello_bytes=client_hello.raw_bytes if client_hello else None,
+                    raw_server_hello_bytes=server_hello.raw_bytes if server_hello else None,
+                )
+                db.add(tls_db)
+
+            # Step 10: Persist Certificate and CertificateChain records if present
+            cert_db: Optional[Certificate] = None
+            chain_db: Optional[CertificateChain] = None
+            if cert_msg and cert_msg.der_certificates:
+                cap_ts = flow.start_time if flow.start_time > 0 else flow.end_time
+                chain_res = analyze_certificate_chain(cert_msg.der_certificates, capture_timestamp=cap_ts)
+
+                for cert_idx, parsed_cert in enumerate(chain_res.parsed_certificates):
+                    c_rec = Certificate(
+                        session_id=email_sess.id,
+                        certificate_index=cert_idx,
+                        is_server_cert=(cert_idx == 0),
+                        subject_dn=parsed_cert.subject_dn,
+                        issuer_dn=parsed_cert.issuer_dn,
+                        serial_number=parsed_cert.serial_number,
+                        not_before=parsed_cert.not_before,
+                        not_after=parsed_cert.not_after,
+                        public_key_type=parsed_cert.public_key_type,
+                        public_key_size_bits=parsed_cert.public_key_size_bits,
+                        signature_algorithm=parsed_cert.signature_algorithm,
+                        is_weak_signature=parsed_cert.is_weak_signature,
+                        sha256_fingerprint=parsed_cert.sha256_fingerprint,
+                        sha1_fingerprint=parsed_cert.sha1_fingerprint,
+                        is_self_signed=parsed_cert.is_self_signed,
+                        is_valid_at_capture=parsed_cert.is_valid_at_capture,
+                        san_domains=parsed_cert.san_domains_str,
+                        raw_der_bytes=parsed_cert.raw_der_bytes,
+                    )
+                    db.add(c_rec)
+                    if cert_idx == 0:
+                        cert_db = c_rec
+
+                chain_db = CertificateChain(
+                    session_id=email_sess.id,
+                    chain_length=chain_res.chain_length,
+                    is_chain_complete=chain_res.is_chain_complete,
+                    validation_status=chain_res.validation_status,
+                    root_issuer_dn=chain_res.root_issuer_dn,
+                    leaf_subject_dn=chain_res.leaf_subject_dn,
+                )
+                db.add(chain_db)
+
+            # Step 11: Evaluate Security Rules & Calculate Risk Score
+            findings, evidence_recs = evaluate_rules_for_session(
+                session=email_sess,
+                job_id=job.id,
+                capture_id=capture.id,
+                rules=active_rules,
+                tls=tls_db,
+                cert=cert_db,
+                chain=chain_db,
+                stls=st_state,
+            )
+
+            for f in findings:
+                db.add(f)
+            for ev in evidence_recs:
+                db.add(ev)
+
+            total_finding_count += len(findings)
+
+            # Compute transparent Session Risk Score
+            sess_score, _ = calculate_session_risk_score(findings, risk_config)
+            email_sess.risk_score = sess_score
+            session_risk_scores.append(sess_score)
+
+            # Step 12: Phase 6 — Infrastructure Identity, Cryptographic Profile, Baseline, Drift Detection & Timeline
+            current_profile = build_cryptographic_profile(email_sess, tls_db, cert_db, st_state)
+            ident_key = construct_identity_key(
+                server_ip=email_sess.server_ip,
+                server_port=email_sess.server_port,
+                protocol=email_sess.protocol.value if hasattr(email_sess.protocol, "value") else str(email_sess.protocol),
+                hostname=email_sess.hostname,
+                cert_sha256=cert_db.sha256_fingerprint if cert_db else None,
+            )
+
+            # Query or create InfrastructureIdentity
+            stmt = select(InfrastructureIdentity).where(InfrastructureIdentity.ip_address == email_sess.server_ip)
+            res = await db.execute(stmt)
+            infra = res.scalar_one_or_none()
+
+            now_utc = datetime.now(timezone.utc)
+            proto_val = email_sess.protocol.value if hasattr(email_sess.protocol, "value") else str(email_sess.protocol)
+            profile_json_str = json.dumps(current_profile.to_dict()) if current_profile else None
+
+            if infra:
+                infra.last_seen_at = now_utc
+                infra.hostname = email_sess.hostname or infra.hostname
+                infra.port = email_sess.server_port or infra.port
+                infra.protocol = proto_val or infra.protocol
+                infra.identity_key = ident_key
+                infra.active_profile_json = profile_json_str
+                infra.current_risk_score = sess_score
+                infra.last_evaluated_job_id = job.id
+            else:
+                infra = InfrastructureIdentity(
+                    id=str(uuid.uuid4()),
+                    ip_address=email_sess.server_ip,
+                    port=email_sess.server_port,
+                    protocol=proto_val,
+                    hostname=email_sess.hostname,
+                    identity_key=ident_key,
+                    active_profile_json=profile_json_str,
+                    first_seen_at=now_utc,
+                    last_seen_at=now_utc,
+                    current_risk_score=sess_score,
+                    last_evaluated_job_id=job.id,
+                )
+                db.add(infra)
+                await db.flush()
+
+            # Baseline lookup & Drift Comparison
+            bl = global_baseline_store.get_baseline(ident_key)
+            session_drift_events: List[DriftEvent] = []
+
+            if bl and bl.status in (BaselineStatus.ESTABLISHED, BaselineStatus.TRUSTED) and bl.profile:
+                drift_res = compare_profiles_for_drift(
+                    current=current_profile,
+                    baseline_profile=bl.profile,
+                    baseline_status=bl.status,
+                    current_risk_score=sess_score,
+                    baseline_risk_score=infra.current_risk_score or 0.0,
+                )
+                if drift_res.is_drift_detected and drift_res.primary_event_type:
+                    drift_db = DriftEvent(
+                        id=str(uuid.uuid4()),
+                        infrastructure_id=infra.id,
+                        capture_id=capture.id,
+                        job_id=job.id,
+                        event_type=drift_res.primary_event_type,
+                        previous_state=json.dumps(drift_res.previous_state),
+                        new_state=json.dumps(drift_res.new_state),
+                        delta_description=drift_res.delta_description,
+                        risk_delta=drift_res.risk_delta,
+                        detected_at=now_utc,
+                    )
+                    db.add(drift_db)
+                    await db.flush()
+                    session_drift_events.append(drift_db)
+
+            # Update Baseline store
+            global_baseline_store.record_profile(ident_key, current_profile, min_established_count=3)
+
+            # Step 13: Phase 10 — Behavioural Deviation Analysis
+            # Run AFTER baseline is updated so the current observation is part of the store.
+            # Analysis always runs; the engine returns INSUFFICIENT_DATA explicitly when needed.
+            post_update_bl = global_baseline_store.get_baseline(ident_key)
+            if post_update_bl is not None:
+                try:
+                    behavioral_engine = BehavioralAnalysisEngine()
+                    beh_result = behavioral_engine.analyze(
+                        infrastructure_id=infra.id,
+                        identity_key=ident_key,
+                        job_id=job.id,
+                        session_id=email_sess.id,
+                        current_profile=current_profile,
+                        baseline=post_update_bl,
+                        current_risk_score=sess_score,
+                    )
+                    beh_record = BehavioralAnalysis(
+                        infrastructure_id=infra.id,
+                        job_id=job.id,
+                        session_id=email_sess.id,
+                        identity_key=ident_key,
+                        baseline_status=beh_result.baseline_status.value,
+                        observation_count=beh_result.observation_count,
+                        overall_status=beh_result.overall_status,
+                        significant_deviation_detected=beh_result.significant_deviation_detected,
+                        deviation_summary=beh_result.deviation_summary,
+                        anomaly_count=len(beh_result.anomalies),
+                        anomalies_json=json.dumps([a.to_dict() for a in beh_result.anomalies]),
+                        risk_stat_json=json.dumps(beh_result.risk_stat_analysis.to_dict()) if beh_result.risk_stat_analysis else None,
+                        isolation_forest_json=json.dumps(beh_result.isolation_forest.to_dict()) if beh_result.isolation_forest else None,
+                        limitations_json=json.dumps(beh_result.limitations),
+                    )
+                    db.add(beh_record)
+                    log.info(
+                        "behavioral_analysis_completed",
+                        job_id=job.id,
+                        session_id=email_sess.id,
+                        significant_deviation=beh_result.significant_deviation_detected,
+                        anomaly_count=len(beh_result.anomalies),
+                        baseline_status=beh_result.baseline_status.value,
+                    )
+                except Exception as beh_exc:
+                    # Behavioral analysis failure must NEVER crash the pipeline.
+                    log.warning(
+                        "behavioral_analysis_skipped",
+                        job_id=job.id,
+                        session_id=email_sess.id,
+                        reason=str(beh_exc),
+                    )
+
+            # Build and persist TimelineEvent records
+            tm_events = build_timeline_events_for_session(
+                job_id=job.id,
+                session=email_sess,
+                tls=tls_db,
+                cert=cert_db,
+                chain=chain_db,
+                stls=st_state,
+                findings=findings,
+                drift_events=session_drift_events,
+            )
+            for te in tm_events:
+                db.add(te)
+
+            created_sessions.append(email_sess)
+
+
+        # Step 12: Calculate Aggregate AnalysisJob Risk Score
+        job_risk = calculate_job_risk_score(session_risk_scores)
+        job.overall_risk_score = job_risk
+
+        # Persist derived risk band so report generator (raw ORM path) always has it
+        from app.rules.risk_calculator import calculate_job_risk_band
+        job_risk_band = calculate_job_risk_band(job_risk, risk_config)
+
+        # Update AnalysisJob completed state
+        job.status = JobStatus.COMPLETED
+        job.total_sessions = len(created_sessions)
+        job.total_findings = total_finding_count
+        job.risk_band = job_risk_band
+        job.completed_at = datetime.now(timezone.utc)
+        await db.commit()
+
+        log.info(
+            "pipeline_completed",
+            capture_id=capture.id,
+            job_id=job.id,
+            total_sessions=len(created_sessions),
+            job_risk_score=job_risk,
+        )
+
+        return created_sessions
+
+    except Exception as exc:
+        job.status = JobStatus.FAILED
+        job.error_message = str(exc)
+        await db.commit()
+        log.error("pipeline_failed", job_id=job.id, error=str(exc))
+        raise
+
+
+def _plaintext_after_starttls_accept(segments, response_frame: Optional[int]) -> bool:
+    """Detect cleartext protocol bytes after a STARTTLS acceptance frame."""
+    if response_frame is None:
+        return False
+
+    for seg in sorted(segments, key=lambda item: item.frame_number):
+        if seg.frame_number <= response_frame or not seg.payload:
+            continue
+
+        records = parse_tls_records(seg.payload, seg.frame_number, seg.timestamp)
+        if records:
+            return False
+
+        text = seg.payload.decode("utf-8", errors="ignore").strip()
+        if text:
+            return True
+
+    return False
