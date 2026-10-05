@@ -6,9 +6,15 @@ Provides paginated listing, detail inspection, and session timeline events.
 import math
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analyzers.security_fingerprint import (
+    build_security_fingerprint,
+    compare_security_fingerprints,
+)
 from app.db.session import get_db
+from app.models import AnalysisJob, InfrastructureIdentity
 from app.schemas import EmailSessionRead, TimelineEventRead, PaginatedResponse
 from app.services.query_service import (
     get_paginated_sessions,
@@ -85,6 +91,54 @@ async def get_session_v1(
             detail=f"EmailSession with ID '{session_id}' not found.",
         )
     return EmailSessionRead.model_validate(session)
+
+
+async def _fingerprint_for_session(db: AsyncSession, session_id: str):
+    session = await get_session_by_id(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"EmailSession with ID '{session_id}' not found.")
+    job_result = await db.execute(select(AnalysisJob).where(AnalysisJob.id == session.job_id))
+    job = job_result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Analysis job for session was not found.")
+    infra_result = await db.execute(
+        select(InfrastructureIdentity.id).where(
+            InfrastructureIdentity.ip_address == session.server_ip,
+            InfrastructureIdentity.last_evaluated_job_id == job.id,
+        )
+    )
+    infrastructure_id = infra_result.scalar_one_or_none()
+    return build_security_fingerprint(session, job.capture_id, job, infrastructure_id)
+
+
+@router.get(
+    "/{session_id}/fingerprint",
+    summary="Get derived cryptographic security fingerprint",
+    description="Build a versioned fingerprint from persisted session facts and packet evidence.",
+)
+async def get_session_fingerprint_v1(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await _fingerprint_for_session(db, session_id)
+
+
+@router.get(
+    "/{session_id}/fingerprint/compare/{other_session_id}",
+    summary="Compare two cryptographic security fingerprints",
+)
+async def compare_session_fingerprints_v1(
+    session_id: str,
+    other_session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    first = await _fingerprint_for_session(db, session_id)
+    second = await _fingerprint_for_session(db, other_session_id)
+    return {
+        "first_session_id": session_id,
+        "second_session_id": other_session_id,
+        **compare_security_fingerprints(first, second),
+    }
 
 
 @router.get(
