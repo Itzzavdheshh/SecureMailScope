@@ -70,6 +70,7 @@ def _fixture(**changes):
         negotiated_tls_version="TLS 1.2",
         negotiated_cipher_suite="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
         key_exchange_group="secp256r1",
+        key_exchange_bits=256,
         is_forward_secrecy=True,
         offered_tls_versions="TLS 1.2",
         client_cipher_suites="TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
@@ -145,6 +146,7 @@ def test_same_posture_has_deterministic_hash_despite_volatile_observation_data()
     [
         {"tls": {"negotiated_tls_version": "TLS 1.3"}},
         {"tls": {"negotiated_cipher_suite": "TLS_AES_128_GCM_SHA256"}},
+        {"tls": {"key_exchange_bits": 384}},
         {"certificate_fingerprint": "b" * 64},
         {"starttls_state": "REJECTED"},
     ],
@@ -258,6 +260,7 @@ async def test_demo_capture_fingerprint_reconstructs_from_persisted_rows_and_rep
         assert json.loads(generate_json_report(graph))["sessions"][0]["cryptographic_security_fingerprint"] == fingerprint
         assert fingerprint["security_posture"]["analysis_job_risk_score"] == job.overall_risk_score
         assert fingerprint["stable_profile"]["tls_version"] is not None
+        assert fingerprint["stable_profile"]["key_exchange_bits"] == persisted_session.tls_handshake.key_exchange_bits
         assert fingerprint["fingerprint_hash"].startswith("sha256:")
         assert fingerprint["evidence"]["frames"]["server_hello"] is not None
         assert fingerprint["evidence"]["frames"]["certificate"] is None

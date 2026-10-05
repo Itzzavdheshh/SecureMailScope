@@ -234,7 +234,7 @@ export const SessionDetailPage: React.FC = () => {
               <div><span className="fingerprint-label">Protocol</span><br />{fingerprint.stable_profile.protocol || 'Not Observed'}</div>
               <div><span className="fingerprint-label">TLS Version</span><br /><span className="mono">{fingerprint.stable_profile.tls_version || 'Not Observed'}</span></div>
               <div><span className="fingerprint-label">Cipher</span><br /><span className="mono">{fingerprint.stable_profile.cipher_suite || 'Not Observed'}</span></div>
-              <div><span className="fingerprint-label">Key Exchange</span><br /><span className="mono">{fingerprint.stable_profile.key_exchange_group || 'Not Observed'}</span></div>
+              <div><span className="fingerprint-label">Key Exchange</span><br /><span className="mono">{fingerprint.stable_profile.key_exchange_group || 'Not Observed'}{fingerprint.stable_profile.key_exchange_bits ? ` (${fingerprint.stable_profile.key_exchange_bits} bits)` : ''}</span></div>
               <div><span className="fingerprint-label">Forward Secrecy</span><br />{fingerprint.stable_profile.forward_secrecy === null ? 'Not Observed' : fingerprint.stable_profile.forward_secrecy ? 'Yes' : 'No'}</div>
               <div><span className="fingerprint-label">STARTTLS</span><br />{fingerprint.stable_profile.starttls_state || 'Unknown'}</div>
               <div><span className="fingerprint-label">Certificate</span><br /><span className="mono">{fingerprint.stable_profile.certificate.subject || 'Not Observed'}</span></div>

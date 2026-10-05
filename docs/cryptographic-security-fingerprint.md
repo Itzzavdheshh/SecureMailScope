@@ -29,7 +29,7 @@ The hash input is UTF-8 JSON serialized with sorted keys, compact separators, an
 ASCII escaping. SHA-256 is applied to the recursively normalized stable profile,
 omitting null-valued properties. It includes protocol, implicit-TLS flag, STARTTLS
 state, TLS version, negotiated cipher, key-exchange group, forward-secrecy flag,
-offered TLS versions/ciphers, JA3/JA3S hashes, and observed certificate/chain
+observed key-exchange bits, offered TLS versions/ciphers, JA3/JA3S hashes, and observed certificate/chain
 properties (fingerprint, subject, issuer, SANs, key type/size, signature algorithm,
 validity at capture, self-signed flag, chain status).
 

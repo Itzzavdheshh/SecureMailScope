@@ -66,6 +66,7 @@ def build_security_fingerprint(
         "tls_version": _clean(tls.negotiated_tls_version) if tls else None,
         "cipher_suite": _clean(tls.negotiated_cipher_suite) if tls else None,
         "key_exchange_group": _clean(tls.key_exchange_group) if tls else None,
+        "key_exchange_bits": tls.key_exchange_bits if tls else None,
         "forward_secrecy": tls.is_forward_secrecy if tls else None,
         "offered_tls_versions": _normalize_json_list(tls.offered_tls_versions) if tls else None,
         "offered_cipher_suites": _normalize_json_list(tls.client_cipher_suites) if tls else None,

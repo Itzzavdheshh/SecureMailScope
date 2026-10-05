@@ -201,6 +201,7 @@ export interface SecurityFingerprintRead {
     tls_version: string | null;
     cipher_suite: string | null;
     key_exchange_group: string | null;
+    key_exchange_bits: number | null;
     forward_secrecy: boolean | null;
     offered_tls_versions: string | null;
     offered_cipher_suites: string | null;
