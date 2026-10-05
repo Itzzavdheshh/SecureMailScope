@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Server, Activity, Clock } from 'lucide-react';
-import { infrastructureApi, sessionsApi } from '../api/services';
+import { infrastructureApi } from '../api/services';
 import type { InfrastructureIdentityRead, PaginatedResponse } from '../types/api';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { Pagination } from '../components/common/Pagination';
@@ -12,7 +12,6 @@ import { InspectorPanel } from '../components/common/InspectorPanel';
 export const InfrastructurePage: React.FC = () => {
   const { activeCapture, activeJob } = useWorkspace();
   const [data, setData] = useState<PaginatedResponse<InfrastructureIdentityRead> | null>(null);
-  const [currentCaptureIps, setCurrentCaptureIps] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [searchVal, setSearchVal] = useState('');
   const [protocolFilter, setProtocolFilter] = useState('');
@@ -26,22 +25,9 @@ export const InfrastructurePage: React.FC = () => {
     try {
       const res = await infrastructureApi.list(currentPage, 50);
       setData(res);
-
-      if (activeJob?.id) {
-        try {
-          const sessionsRes = await sessionsApi.list({ job_id: activeJob.id, page: 1, page_size: 100 });
-          const ips = new Set(sessionsRes.items.map((s) => s.server_ip));
-          setCurrentCaptureIps(ips);
-        } catch {
-          setCurrentCaptureIps(new Set());
-        }
-      } else {
-        setCurrentCaptureIps(new Set());
-      }
-
-      if (res.items.length > 0 && !selectedIdentity) {
-        setSelectedIdentity(res.items[0]);
-      }
+      setSelectedIdentity((selected) =>
+        res.items.find((identity) => identity.id === selected?.id) ?? res.items[0] ?? null
+      );
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to fetch infrastructure identities.');
     } finally {
@@ -101,8 +87,8 @@ export const InfrastructurePage: React.FC = () => {
     },
     {
       key: 'risk',
-      header: 'RISK',
-      width: '60px',
+      header: 'LAST SESSION RISK',
+      width: '130px',
       align: 'right',
       render: (inf) => (
         <span
@@ -137,11 +123,11 @@ export const InfrastructurePage: React.FC = () => {
   });
 
   const currentCaptureItems = filteredItems.filter(
-    (inf) => currentCaptureIps.has(inf.ip_address) || inf.last_evaluated_job_id === activeJob?.id
+    (inf) => activeJob?.status === 'COMPLETED' && inf.last_evaluated_job_id === activeJob.id
   );
 
   const historicalItems = filteredItems.filter(
-    (inf) => !currentCaptureIps.has(inf.ip_address) && inf.last_evaluated_job_id !== activeJob?.id
+    (inf) => !(activeJob?.status === 'COMPLETED' && inf.last_evaluated_job_id === activeJob.id)
   );
 
   return (
@@ -179,7 +165,7 @@ export const InfrastructurePage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Activity size={16} color="var(--color-blue-700)" />
                   <span className="card-title" style={{ fontSize: '12px' }}>
-                    CURRENT CAPTURE OBSERVATIONS ({currentCaptureItems.length})
+                    LATEST OBSERVATIONS FROM SELECTED JOB ({currentCaptureItems.length})
                   </span>
                 </div>
                 <span className="badge badge--info" style={{ fontSize: '10px' }}>
@@ -209,7 +195,7 @@ export const InfrastructurePage: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Clock size={16} color="var(--color-text-muted)" />
                     <span className="card-title" style={{ fontSize: '12px' }}>
-                      HISTORICAL / INVESTIGATION-WIDE OBSERVATIONS ({historicalItems.length})
+                      LAST OBSERVED IN OTHER JOBS ({historicalItems.length})
                     </span>
                   </div>
                   <span className="badge badge--warning" style={{ fontSize: '10px' }}>
@@ -264,11 +250,17 @@ export const InfrastructurePage: React.FC = () => {
                   </div>
                 </div>
                 <div className="detail-row">
-                  <div className="detail-row__label">Current Risk</div>
+                  <div className="detail-row__label">Latest Evaluated Session Risk</div>
                   <div className="detail-row__value mono" style={{ fontWeight: 700 }}>
                     {selectedIdentity.current_risk_score !== null && selectedIdentity.current_risk_score !== undefined
                       ? selectedIdentity.current_risk_score.toFixed(1)
-                      : '0.0'}
+                      : 'N/A'}
+                  </div>
+                </div>
+                <div className="detail-row">
+                  <div className="detail-row__label">Last Evaluated Job</div>
+                  <div className="detail-row__value mono" style={{ fontSize: '11px' }}>
+                    {selectedIdentity.last_evaluated_job_id || 'N/A'}
                   </div>
                 </div>
               </div>
