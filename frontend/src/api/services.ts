@@ -13,6 +13,7 @@ import type {
   PaginatedBehavioralResponse,
   PaginatedResponse,
   RiskSummaryResponse,
+  SecurityFingerprintRead,
   TimelineEventRead,
 } from '../types/api';
 
@@ -116,6 +117,11 @@ export const sessionsApi = {
 
   get: async (sessionId: string): Promise<EmailSessionRead> => {
     const res = await apiClient.get<EmailSessionRead>(`/sessions/${sessionId}`);
+    return res.data;
+  },
+
+  fingerprint: async (sessionId: string): Promise<SecurityFingerprintRead> => {
+    const res = await apiClient.get<SecurityFingerprintRead>(`/sessions/${sessionId}/fingerprint`);
     return res.data;
   },
 

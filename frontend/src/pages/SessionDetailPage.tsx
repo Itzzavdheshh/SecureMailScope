@@ -10,13 +10,15 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { sessionsApi } from '../api/services';
-import type { EmailSessionRead } from '../types/api';
+import type { EmailSessionRead, SecurityFingerprintRead } from '../types/api';
 import { StarttlsStateBadge, SeverityBadge } from '../components/common/Badge';
 import { LoadingState, ErrorState } from '../components/common/StateViews';
 
 export const SessionDetailPage: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [session, setSession] = useState<EmailSessionRead | null>(null);
+  const [fingerprint, setFingerprint] = useState<SecurityFingerprintRead | null>(null);
+  const [fingerprintError, setFingerprintError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -28,6 +30,13 @@ export const SessionDetailPage: React.FC = () => {
       try {
         const res = await sessionsApi.get(sessionId);
         setSession(res);
+        try {
+          setFingerprint(await sessionsApi.fingerprint(sessionId));
+          setFingerprintError(null);
+        } catch {
+          setFingerprint(null);
+          setFingerprintError('Fingerprint is unavailable for this session.');
+        }
       } catch (err: any) {
         setErrorMsg(err.message || `Failed to fetch session detail for ${sessionId}`);
       } finally {
@@ -207,6 +216,45 @@ export const SessionDetailPage: React.FC = () => {
           <div style={{ color: 'var(--color-text-muted)', padding: '16px 0' }}>
             No TLS handshake layer was observed for this unencrypted plaintext session.
           </div>
+        )}
+      </div>
+
+      {/* Derived cryptographic fingerprint */}
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+          <Lock size={20} style={{ color: 'var(--color-accent)' }} />
+          <h3>Cryptographic Security Fingerprint</h3>
+          {fingerprint && <span className="mono" style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>v{fingerprint.fingerprint_version}</span>}
+        </div>
+        {fingerprintError ? (
+          <div style={{ color: 'var(--color-text-muted)' }}>{fingerprintError}</div>
+        ) : fingerprint ? (
+          <>
+            <div className="grid-content-2" style={{ gap: '14px', fontSize: '0.875rem' }}>
+              <div><span className="fingerprint-label">Protocol</span><br />{fingerprint.stable_profile.protocol || 'Not Observed'}</div>
+              <div><span className="fingerprint-label">TLS Version</span><br /><span className="mono">{fingerprint.stable_profile.tls_version || 'Not Observed'}</span></div>
+              <div><span className="fingerprint-label">Cipher</span><br /><span className="mono">{fingerprint.stable_profile.cipher_suite || 'Not Observed'}</span></div>
+              <div><span className="fingerprint-label">Key Exchange</span><br /><span className="mono">{fingerprint.stable_profile.key_exchange_group || 'Not Observed'}</span></div>
+              <div><span className="fingerprint-label">Forward Secrecy</span><br />{fingerprint.stable_profile.forward_secrecy === null ? 'Not Observed' : fingerprint.stable_profile.forward_secrecy ? 'Yes' : 'No'}</div>
+              <div><span className="fingerprint-label">STARTTLS</span><br />{fingerprint.stable_profile.starttls_state || 'Unknown'}</div>
+              <div><span className="fingerprint-label">Certificate</span><br /><span className="mono">{fingerprint.stable_profile.certificate.subject || 'Not Observed'}</span></div>
+              <div><span className="fingerprint-label">Certificate Fingerprint</span><br /><span className="mono" style={{ overflowWrap: 'anywhere' }}>{fingerprint.stable_profile.certificate.sha256_fingerprint || 'Not Observed'}</span></div>
+              <div><span className="fingerprint-label">Certificate Validity at Capture</span><br />{fingerprint.stable_profile.certificate.valid_at_capture === null ? 'Not Observed' : fingerprint.stable_profile.certificate.valid_at_capture ? 'Valid' : 'Invalid'}</div>
+              <div><span className="fingerprint-label">JA3</span><br /><span className="mono">{fingerprint.stable_profile.ja3 || 'Not Observed'}</span></div>
+              <div><span className="fingerprint-label">JA3S</span><br /><span className="mono">{fingerprint.stable_profile.ja3s || 'Not Observed'}</span></div>
+              <div><span className="fingerprint-label">Analysis Job Risk</span><br />{fingerprint.security_posture.analysis_job_risk_score == null ? 'Unknown' : `${fingerprint.security_posture.analysis_job_risk_score.toFixed(1)} / 100 (${fingerprint.security_posture.risk_band || 'Unknown'})`}</div>
+              <div><span className="fingerprint-label">Session Risk</span><br />{fingerprint.security_posture.session_risk_score == null ? 'Unknown' : `${fingerprint.security_posture.session_risk_score.toFixed(1)} / 100`}</div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <span className="fingerprint-label">Fingerprint Hash (SHA-256)</span><br />
+                <span className="mono" style={{ overflowWrap: 'anywhere' }}>{fingerprint.fingerprint_hash}</span>
+              </div>
+              <div style={{ gridColumn: '1 / -1', color: 'var(--color-text-secondary)' }}>
+                Evidence frames: ClientHello {fingerprint.evidence.frames.client_hello ?? 'Not Observed'} · ServerHello {fingerprint.evidence.frames.server_hello ?? 'Not Observed'} · STARTTLS command {fingerprint.evidence.frames.starttls_command ?? 'Not Observed'} · Certificate frame not persisted
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ color: 'var(--color-text-muted)' }}>Loading fingerprint...</div>
         )}
       </div>
 

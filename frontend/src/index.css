@@ -874,6 +874,13 @@ select.input {
   word-break: break-word;
 }
 
+.fingerprint-label {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 /* ─── Stat Card  ─────────────────────────────────────────────────────────────── */
 .stat-card {
   background: var(--color-surface);

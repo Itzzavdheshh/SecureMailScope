@@ -185,6 +185,67 @@ export interface EmailSessionRead {
   findings?: FindingRead[] | null;
 }
 
+export interface SecurityFingerprintRead {
+  fingerprint_version: string;
+  identity: {
+    protocol: string;
+    server_ip: string;
+    server_port: number;
+    hostname: string | null;
+    infrastructure_id: string | null;
+  };
+  stable_profile: {
+    protocol: string | null;
+    is_tls_implicit: boolean | null;
+    starttls_state: string | null;
+    tls_version: string | null;
+    cipher_suite: string | null;
+    key_exchange_group: string | null;
+    forward_secrecy: boolean | null;
+    offered_tls_versions: string | null;
+    offered_cipher_suites: string | null;
+    ja3: string | null;
+    ja3s: string | null;
+    certificate: {
+      sha256_fingerprint: string | null;
+      subject: string | null;
+      issuer: string | null;
+      sans: string | null;
+      key_type: string | null;
+      key_size_bits: number | null;
+      signature_algorithm: string | null;
+      valid_at_capture: boolean | null;
+      self_signed: boolean | null;
+      chain_status: string | null;
+    };
+  };
+  security_posture: {
+    analysis_job_risk_score: number | null;
+    risk_band: RiskBand | null;
+    session_risk_score: number | null;
+    finding_ids: string[];
+    severity_distribution: Record<string, number>;
+  };
+  evidence: {
+    capture_id: string;
+    analysis_job_id: string;
+    session_id: string;
+    observed_at: string | null;
+    frames: {
+      client_hello: number | null;
+      server_hello: number | null;
+      starttls_advertised: number | null;
+      starttls_command: number | null;
+      starttls_response: number | null;
+      certificate: number | null;
+      findings: number[];
+    };
+  };
+  fingerprint_hash: string;
+  hash_algorithm: string;
+  hash_fields: string[];
+}
+
 export interface DriftEventRead {
   id: string;
   infrastructure_id: string;
