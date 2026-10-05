@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { CaptureRead, AnalysisJobRead } from '../types/api';
 import { capturesApi, jobsApi } from '../api/services';
 
@@ -31,6 +31,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [activeJob, setActiveJob] = useState<AnalysisJobRead | null>(null);
   const [capturesList, setCapturesList] = useState<EnrichedCapture[]>([]);
   const [isLoadingCaptures, setIsLoadingCaptures] = useState<boolean>(true);
+  const selectionRequest = useRef(0);
 
   const enrichCaptures = async (items: CaptureRead[]): Promise<EnrichedCapture[]> => {
     return Promise.all(
@@ -57,10 +58,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const refreshCaptures = async () => {
+    const requestId = ++selectionRequest.current;
     setIsLoadingCaptures(true);
     try {
       const res = await capturesApi.list(1, 100);
       const enriched = await enrichCaptures(res.items);
+      if (requestId !== selectionRequest.current) return;
       setCapturesList(enriched);
 
       // Check URL search params for capture_id
@@ -70,34 +73,42 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (targetCaptureId) {
         const found = enriched.find((c) => c.id === targetCaptureId);
         if (found) {
-          setActiveCapture(found);
           const jobs = await jobsApi.list(found.id, 1, 10);
-          const bestJobA = jobs.items.find((j) => j.status === 'COMPLETED') ?? jobs.items[0] ?? null;
-          if (bestJobA) setActiveJob(bestJobA);
+          if (requestId !== selectionRequest.current) return;
+          const bestJob = jobs.items.find((j) => j.status === 'COMPLETED') ?? jobs.items[0] ?? null;
+          setActiveCapture(found);
+          setActiveJob(bestJob);
           return;
         }
       }
 
-      if (enriched.length > 0 && !activeCapture) {
-        const latest = enriched[0];
-        setActiveCapture(latest);
-        const jobs = await jobsApi.list(latest.id, 1, 10);
-        const bestJobB = jobs.items.find((j) => j.status === 'COMPLETED') ?? jobs.items[0] ?? null;
-        if (bestJobB) {
-          setActiveJob(bestJobB);
-        }
+      const retained = activeCapture && enriched.find((item) => item.id === activeCapture.id);
+      const target = retained ?? enriched[0] ?? null;
+      if (target) {
+        const jobs = await jobsApi.list(target.id, 1, 10);
+        if (requestId !== selectionRequest.current) return;
+        const bestJob = jobs.items.find((j) => j.status === 'COMPLETED') ?? jobs.items[0] ?? null;
+        setActiveCapture(target);
+        setActiveJob(bestJob);
+      } else {
+        setActiveCapture(null);
+        setActiveJob(null);
       }
     } catch (err) {
       console.error('Failed to load captures list:', err);
     } finally {
-      setIsLoadingCaptures(false);
+      if (requestId === selectionRequest.current) setIsLoadingCaptures(false);
     }
   };
 
   const selectCaptureById = async (captureId: string) => {
+    const requestId = ++selectionRequest.current;
+    setActiveCapture(null);
+    setActiveJob(null);
     try {
       const cap = await capturesApi.get(captureId);
       const jobs = await jobsApi.list(captureId, 1, 10);
+      if (requestId !== selectionRequest.current) return;
       const completedJobC = jobs.items.find((j) => j.status === 'COMPLETED') ?? null;
       const latestJob = completedJobC ?? (jobs.items.length > 0 ? jobs.items[0] : null);
 
@@ -119,7 +130,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       url.searchParams.set('capture', captureId);
       window.history.pushState({}, '', url.toString());
     } catch (err) {
-      console.error(`Failed to select capture ${captureId}:`, err);
+      if (requestId === selectionRequest.current) {
+        console.error(`Failed to select capture ${captureId}:`, err);
+      }
     }
   };
 

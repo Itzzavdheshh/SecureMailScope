@@ -34,6 +34,10 @@ export const IntakePage: React.FC = () => {
       setUploadResult(res);
       await refreshCaptures();
       setActiveCapture(res);
+      setActiveJob(null);
+      const url = new URL(window.location.href);
+      url.searchParams.set('capture', res.id);
+      window.history.replaceState({}, '', url.toString());
     } catch (err: any) {
       setErrorMsg(getApiErrorMessage(err, "Failed to upload packet capture file."));
     } finally {

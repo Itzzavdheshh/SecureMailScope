@@ -10,12 +10,14 @@ import { Badge, RiskBandBadge } from '../components/common/Badge';
 export const ReportsPage: React.FC = () => {
   const { activeJob, activeCapture } = useWorkspace();
 
-  if (!activeJob) {
+  if (!activeJob || activeJob.status !== 'COMPLETED') {
     return (
       <div className="workspace-page">
         <EmptyState
-          title="No Active Job Report Context"
-          subtitle="Please select or run an analysis job from Intake & PCAP to generate forensic investigation reports."
+          title={activeJob?.status === 'FAILED' ? 'Analysis Failed' : 'No Completed Job Report Context'}
+          subtitle={activeJob?.status === 'FAILED'
+            ? activeJob.error_message || 'This analysis did not complete; no report or risk result is available.'
+            : 'Run an analysis from Intake & PCAP and wait for it to complete before generating forensic reports.'}
           icon={<FileText size={36} />}
         />
       </div>
