@@ -137,3 +137,18 @@ def test_comparison_reports_only_observed_field_differences():
     assert comparison["differences"] == [
         {"field": "starttls_state", "from": "ACCEPTED", "to": "REJECTED"}
     ]
+
+
+def test_offered_parameter_order_does_not_change_hash():
+    first = _fingerprint()
+    second = _fingerprint(tls={
+        "offered_tls_versions": '["TLS 1.2", "TLS 1.3"]',
+        "client_cipher_suites": '["0x1301", "0x1302"]',
+    })
+    third = _fingerprint(tls={
+        "offered_tls_versions": '["TLS 1.3", "TLS 1.2"]',
+        "client_cipher_suites": '["0x1302", "0x1301"]',
+    })
+
+    assert second["fingerprint_hash"] == third["fingerprint_hash"]
+    assert compare_security_fingerprints(second, third)["status"] == "UNCHANGED"

@@ -15,6 +15,20 @@ def _clean(value: Optional[str]) -> Optional[str]:
     return value.strip() if value and value.strip() else None
 
 
+def _normalize_json_list(value: Optional[str]) -> Optional[list]:
+    if not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return _clean(value)
+    if not isinstance(parsed, list):
+        return _clean(value)
+    # Offered parameters are sets for posture identity; preserve duplicate values
+    # only if the parser ever emits them (normal ClientHello lists do not).
+    return sorted(parsed, key=lambda item: str(item))
+
+
 def build_security_fingerprint(
     session: Any,
     capture_id: str,
@@ -53,8 +67,8 @@ def build_security_fingerprint(
         "cipher_suite": _clean(tls.negotiated_cipher_suite) if tls else None,
         "key_exchange_group": _clean(tls.key_exchange_group) if tls else None,
         "forward_secrecy": tls.is_forward_secrecy if tls else None,
-        "offered_tls_versions": _clean(tls.offered_tls_versions) if tls else None,
-        "offered_cipher_suites": _clean(tls.client_cipher_suites) if tls else None,
+        "offered_tls_versions": _normalize_json_list(tls.offered_tls_versions) if tls else None,
+        "offered_cipher_suites": _normalize_json_list(tls.client_cipher_suites) if tls else None,
         "ja3": ja3,
         "ja3s": ja3s,
         "certificate": {
