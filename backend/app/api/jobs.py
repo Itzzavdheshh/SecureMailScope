@@ -68,6 +68,15 @@ async def start_job(
             detail=f"Analysis job with ID '{job_id}' not found.",
         )
 
+    if job.status != JobStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Analysis job '{job_id}' is {job.status.value}; only PENDING jobs can start. "
+                "Create a new analysis job to reprocess this capture."
+            ),
+        )
+
     # Fetch capture
     cap_stmt = select(Capture).where(Capture.id == job.capture_id)
     cap_res = await db.execute(cap_stmt)

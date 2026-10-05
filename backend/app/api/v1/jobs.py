@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.models import AnalysisJob, Capture
+from app.models import AnalysisJob, Capture, JobStatus
 from app.schemas import AnalysisJobRead, PaginatedResponse
 from app.services.query_service import get_paginated_jobs
 from app.analyzers.pipeline import run_pipeline
@@ -89,6 +89,15 @@ async def start_job_v1(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Analysis job with ID '{job_id}' not found.",
+        )
+
+    if job.status != JobStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Analysis job '{job_id}' is {job.status.value}; only PENDING jobs can start. "
+                "Create a new analysis job to reprocess this capture."
+            ),
         )
 
     cap_stmt = select(Capture).where(Capture.id == job.capture_id)

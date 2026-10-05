@@ -330,6 +330,19 @@ async def test_v1_jobs_not_found(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_completed_analysis_job_cannot_be_run_again(client: AsyncClient, sample_db_data):
+    """Re-analysis must use a distinct job instead of appending duplicate child records."""
+    response = await client.post(f"/api/v1/jobs/{sample_db_data['job_id']}/start")
+    assert response.status_code == 409
+    assert "only PENDING jobs can start" in response.json()["detail"]
+
+    compatibility_response = await client.post(
+        f"/api/jobs/{sample_db_data['job_id']}/start"
+    )
+    assert compatibility_response.status_code == 409
+
+
+@pytest.mark.anyio
 async def test_v1_sessions_list_and_filtering(client: AsyncClient, sample_db_data):
     """Test GET /api/v1/sessions with protocol and risk filters."""
     # List all
