@@ -32,11 +32,18 @@ class JobStartResponse(BaseModel):
 )
 async def list_jobs_v1(
     capture_id: Optional[str] = Query(default=None, description="Filter jobs by capture ID"),
+    status_filter: Optional[JobStatus] = Query(default=None, alias="status", description="Filter jobs by lifecycle status"),
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=50, ge=1, le=100, description="Items per page"),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[AnalysisJobRead]:
-    items, total = await get_paginated_jobs(db, page=page, page_size=page_size, capture_id=capture_id)
+    items, total = await get_paginated_jobs(
+        db,
+        page=page,
+        page_size=page_size,
+        capture_id=capture_id,
+        status=status_filter,
+    )
     total_pages = math.ceil(total / page_size) if total > 0 else 0
 
     return PaginatedResponse[AnalysisJobRead](

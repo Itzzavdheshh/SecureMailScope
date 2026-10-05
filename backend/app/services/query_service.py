@@ -55,12 +55,18 @@ async def get_paginated_captures(
 
 
 async def get_paginated_jobs(
-    db: AsyncSession, page: int = 1, page_size: int = 50, capture_id: Optional[str] = None
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 50,
+    capture_id: Optional[str] = None,
+    status: Optional[JobStatus] = None,
 ) -> Tuple[List[AnalysisJob], int]:
     """Retrieve paginated AnalysisJob records."""
     query = select(AnalysisJob)
     if capture_id:
         query = query.where(AnalysisJob.capture_id == capture_id)
+    if status:
+        query = query.where(AnalysisJob.status == status)
 
     count_stmt = select(func.count()).select_from(query.subquery())
     total_res = await db.execute(count_stmt)

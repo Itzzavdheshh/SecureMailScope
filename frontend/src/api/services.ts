@@ -63,9 +63,14 @@ export const capturesApi = {
 };
 
 export const jobsApi = {
-  list: async (captureId?: string, page = 1, pageSize = 50): Promise<PaginatedResponse<AnalysisJobRead>> => {
+  list: async (
+    captureId?: string,
+    page = 1,
+    pageSize = 50,
+    status?: AnalysisJobRead['status'],
+  ): Promise<PaginatedResponse<AnalysisJobRead>> => {
     const res = await apiClient.get<PaginatedResponse<AnalysisJobRead>>('/jobs', {
-      params: { capture_id: captureId, page, page_size: pageSize },
+      params: { capture_id: captureId, page, page_size: pageSize, status },
     });
     return res.data;
   },

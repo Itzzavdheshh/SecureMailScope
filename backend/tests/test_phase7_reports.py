@@ -627,13 +627,14 @@ async def test_capture_views_use_latest_completed_job_and_canonical_risk(client:
     from app.db.session import AsyncSessionLocal
 
     async with AsyncSessionLocal() as db:
-        db.add(AnalysisJob(
-            id="job-newer-failed",
-            capture_id=sample_db_data["capture_id"],
-            status=JobStatus.FAILED,
-            overall_risk_score=None,
-            created_at=datetime.now(timezone.utc),
-        ))
+        for index in range(12):
+            db.add(AnalysisJob(
+                id=f"job-newer-failed-{index}",
+                capture_id=sample_db_data["capture_id"],
+                status=JobStatus.FAILED,
+                overall_risk_score=None,
+                created_at=datetime.now(timezone.utc),
+            ))
         await db.commit()
 
     capture_id = sample_db_data["capture_id"]
@@ -642,6 +643,13 @@ async def test_capture_views_use_latest_completed_job_and_canonical_risk(client:
     assert risk_response.status_code == 200
     assert risk_response.json()["job_id"] == job_id
     assert risk_response.json()["overall_risk_score"] == 75.5
+
+    completed_jobs = await client.get(
+        f"/api/v1/jobs?capture_id={capture_id}&status=COMPLETED&page_size=1"
+    )
+    assert completed_jobs.status_code == 200
+    assert completed_jobs.json()["total"] == 1
+    assert completed_jobs.json()["items"][0]["id"] == job_id
 
     capture_report = await client.get(f"/api/v1/captures/{capture_id}/report?format=json")
     assert capture_report.status_code == 200
@@ -657,9 +665,9 @@ async def test_capture_views_use_latest_completed_job_and_canonical_risk(client:
     assert report_pdf.status_code == 200
     assert report_pdf.content.startswith(b"%PDF-")
 
-    failed_report = await client.get("/api/v1/reports/job-newer-failed?format=json")
+    failed_report = await client.get("/api/v1/reports/job-newer-failed-0?format=json")
     assert failed_report.status_code == 409
-    failed_risk = await client.get("/api/v1/jobs/job-newer-failed/risk")
+    failed_risk = await client.get("/api/v1/jobs/job-newer-failed-0/risk")
     assert failed_risk.status_code == 404
 
 

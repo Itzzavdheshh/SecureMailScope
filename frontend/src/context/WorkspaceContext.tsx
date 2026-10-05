@@ -33,14 +33,18 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isLoadingCaptures, setIsLoadingCaptures] = useState<boolean>(true);
   const selectionRequest = useRef(0);
 
+  const getPreferredJob = async (captureId: string): Promise<AnalysisJobRead | null> => {
+    const completed = await jobsApi.list(captureId, 1, 1, 'COMPLETED');
+    if (completed.items[0]) return completed.items[0];
+    const latest = await jobsApi.list(captureId, 1, 1);
+    return latest.items[0] ?? null;
+  };
+
   const enrichCaptures = async (items: CaptureRead[]): Promise<EnrichedCapture[]> => {
     return Promise.all(
       items.map(async (cap) => {
         try {
-          const jobsRes = await jobsApi.list(cap.id, 1, 10);
-          // Prefer most recent COMPLETED job; fallback to most recent any-status.
-          const completedJob = jobsRes.items.find((j) => j.status === 'COMPLETED') ?? null;
-          const latestJob = completedJob ?? (jobsRes.items.length > 0 ? jobsRes.items[0] : null);
+          const latestJob = await getPreferredJob(cap.id);
           return {
             ...cap,
             job_id: latestJob?.id,
@@ -73,9 +77,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (targetCaptureId) {
         const found = enriched.find((c) => c.id === targetCaptureId);
         if (found) {
-          const jobs = await jobsApi.list(found.id, 1, 10);
+          const bestJob = await getPreferredJob(found.id);
           if (requestId !== selectionRequest.current) return;
-          const bestJob = jobs.items.find((j) => j.status === 'COMPLETED') ?? jobs.items[0] ?? null;
           setActiveCapture(found);
           setActiveJob(bestJob);
           return;
@@ -85,9 +88,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const retained = activeCapture && enriched.find((item) => item.id === activeCapture.id);
       const target = retained ?? enriched[0] ?? null;
       if (target) {
-        const jobs = await jobsApi.list(target.id, 1, 10);
+        const bestJob = await getPreferredJob(target.id);
         if (requestId !== selectionRequest.current) return;
-        const bestJob = jobs.items.find((j) => j.status === 'COMPLETED') ?? jobs.items[0] ?? null;
         setActiveCapture(target);
         setActiveJob(bestJob);
       } else {
@@ -107,10 +109,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setActiveJob(null);
     try {
       const cap = await capturesApi.get(captureId);
-      const jobs = await jobsApi.list(captureId, 1, 10);
+      const latestJob = await getPreferredJob(captureId);
       if (requestId !== selectionRequest.current) return;
-      const completedJobC = jobs.items.find((j) => j.status === 'COMPLETED') ?? null;
-      const latestJob = completedJobC ?? (jobs.items.length > 0 ? jobs.items[0] : null);
 
       const enrichedCap: EnrichedCapture = {
         ...cap,
