@@ -37,6 +37,7 @@ from app.models import (
     FindingCategory,
     RiskBand,
     DriftEventType,
+    JobStatus,
 )
 from app.reports.report_generator import (
     build_report_data_graph,
@@ -532,6 +533,48 @@ async def test_v1_capture_report_endpoint(client: AsyncClient, sample_db_data):
     resp = await client.get(f"/api/v1/captures/{cap_id}/report?format=json")
     assert resp.status_code == 200
     assert resp.json()["capture"]["filename"] == "sample_forensic.pcap"
+
+
+@pytest.mark.anyio
+async def test_capture_views_use_latest_completed_job_and_canonical_risk(client: AsyncClient, sample_db_data):
+    """A newer failed run must not replace the completed capture analysis."""
+    from app.db.session import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        db.add(AnalysisJob(
+            id="job-newer-failed",
+            capture_id=sample_db_data["capture_id"],
+            status=JobStatus.FAILED,
+            overall_risk_score=None,
+            created_at=datetime.now(timezone.utc),
+        ))
+        await db.commit()
+
+    capture_id = sample_db_data["capture_id"]
+    job_id = sample_db_data["job_id"]
+    risk_response = await client.get(f"/api/v1/captures/{capture_id}/risk")
+    assert risk_response.status_code == 200
+    assert risk_response.json()["job_id"] == job_id
+    assert risk_response.json()["overall_risk_score"] == 75.5
+
+    capture_report = await client.get(f"/api/v1/captures/{capture_id}/report?format=json")
+    assert capture_report.status_code == 200
+    report_json = capture_report.json()
+    assert report_json["executive_summary"]["job_id"] == job_id
+    assert report_json["executive_summary"]["overall_risk_score"] == 75.5
+
+    report_html = await client.get(f"/api/v1/reports/{job_id}?format=html")
+    assert report_html.status_code == 200
+    assert "75.5 / 100.0" in report_html.text
+
+    report_pdf = await client.get(f"/api/v1/reports/{job_id}?format=pdf")
+    assert report_pdf.status_code == 200
+    assert report_pdf.content.startswith(b"%PDF-")
+
+    failed_report = await client.get("/api/v1/reports/job-newer-failed?format=json")
+    assert failed_report.status_code == 409
+    failed_risk = await client.get("/api/v1/jobs/job-newer-failed/risk")
+    assert failed_risk.status_code == 404
 
 
 @pytest.mark.anyio

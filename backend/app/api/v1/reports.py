@@ -9,7 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models import AnalysisJob
+from app.models import AnalysisJob, JobStatus
+from app.services.query_service import get_latest_completed_job
 from app.reports.report_generator import (
     build_report_data_graph,
     generate_html_report,
@@ -37,6 +38,19 @@ async def get_job_report_v1(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid report format '{format}'. Supported formats are: json, html, pdf.",
+        )
+
+    job_result = await db.execute(select(AnalysisJob).where(AnalysisJob.id == job_id))
+    job = job_result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"AnalysisJob with ID '{job_id}' not found.",
+        )
+    if job.status != JobStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Analysis job '{job_id}' has no completed report yet.",
         )
 
     data = await build_report_data_graph(db, job_id=job_id)
@@ -84,13 +98,7 @@ async def get_capture_report_v1(
             detail=f"Invalid report format '{format}'. Supported formats are: json, html, pdf.",
         )
 
-    stmt = (
-        select(AnalysisJob)
-        .where(AnalysisJob.capture_id == capture_id)
-        .order_by(AnalysisJob.created_at.desc())
-    )
-    res = await db.execute(stmt)
-    job = res.scalar_one_or_none()
+    job = await get_latest_completed_job(db, capture_id)
 
     if not job:
         raise HTTPException(

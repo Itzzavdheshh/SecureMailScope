@@ -26,6 +26,7 @@ from app.models import (
     FindingCategory,
     Confidence,
     RiskBand,
+    JobStatus,
     DriftEventType,
     ProtocolType,
     StarttlsStatus,
@@ -70,6 +71,23 @@ async def get_paginated_jobs(
     res = await db.execute(stmt)
     items = list(res.scalars().all())
     return items, total
+
+
+async def get_latest_completed_job(
+    db: AsyncSession, capture_id: str
+) -> Optional[AnalysisJob]:
+    """Return the newest completed analysis for a capture, never a pending/failed run."""
+    stmt = (
+        select(AnalysisJob)
+        .where(
+            AnalysisJob.capture_id == capture_id,
+            AnalysisJob.status == JobStatus.COMPLETED,
+        )
+        .order_by(AnalysisJob.completed_at.desc(), AnalysisJob.created_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
 
 
 async def get_paginated_sessions(
@@ -352,14 +370,10 @@ async def get_risk_summary(
         stmt = select(AnalysisJob).where(AnalysisJob.id == job_id)
         res = await db.execute(stmt)
         target_job = res.scalar_one_or_none()
+        if target_job and target_job.status != JobStatus.COMPLETED:
+            return None
     elif capture_id:
-        stmt = (
-            select(AnalysisJob)
-            .where(AnalysisJob.capture_id == capture_id)
-            .order_by(AnalysisJob.created_at.desc())
-        )
-        res = await db.execute(stmt)
-        target_job = res.scalar_one_or_none()
+        target_job = await get_latest_completed_job(db, capture_id)
 
     if not target_job:
         return None
