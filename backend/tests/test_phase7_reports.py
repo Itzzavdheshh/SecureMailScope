@@ -7,7 +7,10 @@ and OpenAPI documentation schema.
 
 import io
 import json
+import base64
+import re
 import pytest
+import zlib
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 from httpx import ASGITransport, AsyncClient
@@ -45,6 +48,19 @@ from app.reports.report_generator import (
     generate_html_report,
     generate_pdf_report,
 )
+
+
+def extract_pdf_page_streams(pdf_bytes: bytes) -> list[bytes]:
+    """Decode ReportLab's ASCII85 + Flate content streams for score assertions."""
+    decoded = []
+    for match in re.finditer(rb"stream\r?\n(.*?)\r?\n?endstream", pdf_bytes, re.S):
+        try:
+            encoded = match.group(1).strip()
+            ascii85 = base64.a85decode(b"<~" + encoded, adobe=True)
+            decoded.append(zlib.decompress(ascii85))
+        except (ValueError, zlib.error):
+            continue
+    return decoded
 
 
 @pytest.fixture(autouse=True)
@@ -705,6 +721,7 @@ async def test_capture_views_use_latest_completed_job_and_canonical_risk(client:
     report_pdf = await client.get(f"/api/v1/reports/{job_id}?format=pdf")
     assert report_pdf.status_code == 200
     assert report_pdf.content.startswith(b"%PDF-")
+    assert any(b"75.5 / 100.0" in stream for stream in extract_pdf_page_streams(report_pdf.content))
 
     failed_report = await client.get("/api/v1/reports/job-newer-failed-0?format=json")
     assert failed_report.status_code == 409
