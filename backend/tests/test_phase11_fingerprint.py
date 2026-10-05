@@ -1,12 +1,64 @@
 from datetime import datetime, timezone
+import base64
+import json
+import re
 from types import SimpleNamespace
+import zlib
 
 import pytest
+from pathlib import Path
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
+from app.db import session as db_session_module
+from app.db.session import Base
 from app.analyzers.security_fingerprint import (
     build_security_fingerprint,
     compare_security_fingerprints,
 )
+from app.analyzers.pipeline import run_pipeline
+from app.models import AnalysisJob, Capture, EmailSession, InfrastructureIdentity
+from app.reports.report_generator import (
+    build_report_data_graph,
+    generate_html_report,
+    generate_json_report,
+    generate_pdf_report,
+)
+from app.services.query_service import get_session_by_id
+
+
+def _pdf_streams(pdf_bytes):
+    streams = []
+    for match in re.finditer(rb"stream\r?\n(.*?)\r?\n?endstream", pdf_bytes, re.S):
+        try:
+            encoded = match.group(1).strip()
+            streams.append(zlib.decompress(base64.a85decode(b"<~" + encoded, adobe=True)))
+        except (ValueError, zlib.error):
+            continue
+    return streams
+
+
+@pytest.fixture
+async def fingerprint_database(tmp_path):
+    previous_url = settings.database_url
+    previous_upload_dir = settings.upload_dir
+    upload_dir = tmp_path / "uploads"
+    upload_dir.mkdir()
+    settings.upload_dir = str(upload_dir)
+    settings.database_url = f"sqlite+aiosqlite:///{tmp_path / 'fingerprint.db'}"
+    db_session_module.engine = create_async_engine(settings.database_url)
+    db_session_module.AsyncSessionLocal = async_sessionmaker(
+        db_session_module.engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    async with db_session_module.engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    yield upload_dir
+    await db_session_module.engine.dispose()
+    settings.database_url = previous_url
+    settings.upload_dir = previous_upload_dir
 
 
 def _fixture(**changes):
@@ -152,3 +204,64 @@ def test_offered_parameter_order_does_not_change_hash():
 
     assert second["fingerprint_hash"] == third["fingerprint_hash"]
     assert compare_security_fingerprints(second, third)["status"] == "UNCHANGED"
+
+
+@pytest.mark.parametrize("filename", [
+    "01_secure_smtp.pcap",
+    "02_deprecated_tls.pcap",
+    "03_weak_cipher.pcap",
+    "04_expired_certificate.pcap",
+])
+@pytest.mark.asyncio
+async def test_demo_capture_fingerprint_reconstructs_from_persisted_rows_and_reports(
+    fingerprint_database, filename
+):
+    from app.analyzers.baseline import global_baseline_store
+
+    global_baseline_store.clear()
+    repository_root = Path(__file__).resolve().parents[2]
+    pcap_bytes = (repository_root / "demo_pcaps" / filename).read_bytes()
+    pcap_path = fingerprint_database / filename
+    pcap_path.write_bytes(pcap_bytes)
+
+    async with db_session_module.AsyncSessionLocal() as db:
+        capture = Capture(
+            filename=filename,
+            file_path=str(pcap_path),
+            file_size_bytes=len(pcap_bytes),
+            sha256_hash=__import__("hashlib").sha256(pcap_bytes).hexdigest(),
+        )
+        db.add(capture)
+        await db.flush()
+        job = AnalysisJob(capture_id=capture.id)
+        db.add(job)
+        await db.commit()
+        await run_pipeline(capture, job, db)
+        await db.refresh(job)
+        session_id = (await db.execute(
+            select(EmailSession.id).where(EmailSession.job_id == job.id)
+        )).scalar_one()
+        persisted_session = await get_session_by_id(db, session_id)
+        infrastructure_id = (await db.execute(
+            select(InfrastructureIdentity.id).where(
+                InfrastructureIdentity.ip_address == persisted_session.server_ip,
+                InfrastructureIdentity.last_evaluated_job_id == job.id,
+            )
+        )).scalar_one_or_none()
+        fingerprint = build_security_fingerprint(
+            persisted_session, capture.id, job, infrastructure_id
+        )
+        graph = await build_report_data_graph(db, job.id)
+
+        assert job.status.value == "COMPLETED"
+        assert graph["sessions"][0]["cryptographic_security_fingerprint"] == fingerprint
+        assert json.loads(generate_json_report(graph))["sessions"][0]["cryptographic_security_fingerprint"] == fingerprint
+        assert fingerprint["security_posture"]["analysis_job_risk_score"] == job.overall_risk_score
+        assert fingerprint["stable_profile"]["tls_version"] is not None
+        assert fingerprint["fingerprint_hash"].startswith("sha256:")
+        assert fingerprint["evidence"]["frames"]["server_hello"] is not None
+        assert fingerprint["evidence"]["frames"]["certificate"] is None
+        assert fingerprint["fingerprint_hash"] in generate_html_report(graph)
+        pdf_text_streams = _pdf_streams(generate_pdf_report(graph))
+        assert any(b"Cryptographic Security Fingerprints" in stream for stream in pdf_text_streams)
+        assert any(b"Fingerprint Hash" in stream for stream in pdf_text_streams)
