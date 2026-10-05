@@ -422,6 +422,79 @@ async def test_v1_evidence_list_and_detail(client: AsyncClient, sample_db_data):
 
 
 @pytest.mark.anyio
+async def test_evidence_can_be_scoped_to_one_analysis_job(client: AsyncClient, sample_db_data):
+    """Repeated jobs for one capture must not mix evidence in the active workspace."""
+    from app.db.session import AsyncSessionLocal
+
+    other_job_id = "job-evidence-second-analysis"
+    other_session_id = "session-evidence-second-analysis"
+    other_finding_id = "finding-evidence-second-analysis"
+    async with AsyncSessionLocal() as db:
+        db.add(AnalysisJob(
+            id=other_job_id,
+            capture_id=sample_db_data["capture_id"],
+            status=JobStatus.COMPLETED,
+            overall_risk_score=10.0,
+            risk_band=RiskBand.SECURE,
+        ))
+        db.add(EmailSession(
+            id=other_session_id,
+            job_id=other_job_id,
+            session_index=1,
+            client_ip="192.168.1.101",
+            client_port=49153,
+            server_ip="192.168.1.25",
+            server_port=25,
+            protocol=ProtocolType.SMTP,
+            starttls_state=StarttlsStatus.ACCEPTED,
+            is_tls_implicit=False,
+            risk_score=10.0,
+            packet_count=2,
+            bytes_transferred=64,
+        ))
+        db.add(Finding(
+            id=other_finding_id,
+            job_id=other_job_id,
+            session_id=other_session_id,
+            rule_id="TEST-EVIDENCE-001",
+            title="Second analysis evidence",
+            category=FindingCategory.TLS_CRYPTO,
+            severity=Severity.LOW,
+            confidence=Confidence.HIGH,
+            status=EvidenceStatus.OBSERVED,
+            score_contribution=1.5,
+            description="Test record for job isolation.",
+        ))
+        db.add(Evidence(
+            id="evidence-second-analysis",
+            finding_id=other_finding_id,
+            capture_id=sample_db_data["capture_id"],
+            session_id=other_session_id,
+            frame_number=99,
+            packet_timestamp=1770000099.0,
+            protocol_layer="TLS",
+            field_name="cipher",
+            observed_value="test-only second job",
+            evidence_status=EvidenceStatus.OBSERVED,
+        ))
+        await db.commit()
+
+    first_job_evidence = await client.get(
+        f"/api/v1/evidence?capture_id={sample_db_data['capture_id']}&job_id={sample_db_data['job_id']}"
+    )
+    assert first_job_evidence.status_code == 200
+    assert [item["id"] for item in first_job_evidence.json()["items"]] == ["ev-test-1"]
+
+    second_job_evidence = await client.get(
+        f"/api/v1/evidence?capture_id={sample_db_data['capture_id']}&job_id={other_job_id}"
+    )
+    assert second_job_evidence.status_code == 200
+    assert [item["id"] for item in second_job_evidence.json()["items"]] == [
+        "evidence-second-analysis"
+    ]
+
+
+@pytest.mark.anyio
 async def test_v1_infrastructure_list_and_detail(client: AsyncClient, sample_db_data):
     """Test GET /api/v1/infrastructure and GET /api/v1/infrastructure/{id}."""
     resp = await client.get("/api/v1/infrastructure")

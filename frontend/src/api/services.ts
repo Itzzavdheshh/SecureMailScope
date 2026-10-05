@@ -152,6 +152,7 @@ export const findingsApi = {
 
 export interface EvidenceFilterParams {
   finding_id?: string;
+  job_id?: string;
   session_id?: string;
   capture_id?: string;
   frame_number?: number;

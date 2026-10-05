@@ -66,7 +66,7 @@ export const formatPacketTimestamp = (
 };
 
 export const EvidencePage: React.FC = () => {
-  const { activeCapture } = useWorkspace();
+  const { activeCapture, activeJob } = useWorkspace();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -88,6 +88,7 @@ export const EvidencePage: React.FC = () => {
     try {
       const res = await evidenceApi.list({
         capture_id: activeCapture?.id,
+        job_id: activeJob?.id,
         page: currentPage,
         page_size: 25,
         ...currentFilters,
@@ -105,7 +106,7 @@ export const EvidencePage: React.FC = () => {
 
   useEffect(() => {
     fetchEvidence(page, filters);
-  }, [page, activeCapture]);
+  }, [page, activeCapture, activeJob]);
 
   const handleFilterChange = (key: keyof EvidenceFilterParams, value: any) => {
     const nextFilters = { ...filters, [key]: value || undefined };

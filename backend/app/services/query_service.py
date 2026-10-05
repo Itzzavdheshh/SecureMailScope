@@ -230,6 +230,7 @@ async def get_paginated_evidence(
     page: int = 1,
     page_size: int = 50,
     finding_id: Optional[str] = None,
+    job_id: Optional[str] = None,
     session_id: Optional[str] = None,
     capture_id: Optional[str] = None,
     frame_number: Optional[int] = None,
@@ -241,6 +242,10 @@ async def get_paginated_evidence(
 
     if finding_id:
         query = query.where(Evidence.finding_id == finding_id)
+    if job_id:
+        query = query.join(Finding, Evidence.finding_id == Finding.id).where(
+            Finding.job_id == job_id
+        )
     if session_id:
         query = query.where(Evidence.session_id == session_id)
     if capture_id:

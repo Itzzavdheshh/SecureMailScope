@@ -23,6 +23,7 @@ router = APIRouter()
 )
 async def list_evidence_v1(
     finding_id: Optional[str] = Query(default=None, description="Filter by Finding ID"),
+    job_id: Optional[str] = Query(default=None, description="Filter by Analysis Job ID"),
     session_id: Optional[str] = Query(default=None, description="Filter by Session ID"),
     capture_id: Optional[str] = Query(default=None, description="Filter by Capture ID"),
     frame_number: Optional[int] = Query(default=None, description="Filter by frame number"),
@@ -37,6 +38,7 @@ async def list_evidence_v1(
         page=page,
         page_size=page_size,
         finding_id=finding_id,
+        job_id=job_id,
         session_id=session_id,
         capture_id=capture_id,
         frame_number=frame_number,
