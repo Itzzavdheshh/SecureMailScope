@@ -8,7 +8,7 @@ and OpenAPI documentation schema.
 import io
 import json
 import pytest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -627,6 +627,47 @@ async def test_capture_views_use_latest_completed_job_and_canonical_risk(client:
     from app.db.session import AsyncSessionLocal
 
     async with AsyncSessionLocal() as db:
+        newest_job_id = "job-newest-created-completed"
+        newest_session_id = "session-newest-created-completed"
+        db.add(AnalysisJob(
+            id=newest_job_id,
+            capture_id=sample_db_data["capture_id"],
+            status=JobStatus.COMPLETED,
+            total_sessions=1,
+            total_findings=1,
+            overall_risk_score=60.0,
+            risk_band=RiskBand.HIGH,
+            created_at=datetime.now(timezone.utc) + timedelta(seconds=1),
+            completed_at=datetime.now(timezone.utc) - timedelta(days=1),
+        ))
+        db.add(EmailSession(
+            id=newest_session_id,
+            job_id=newest_job_id,
+            session_index=1,
+            client_ip="192.168.1.102",
+            client_port=49154,
+            server_ip="192.168.1.25",
+            server_port=25,
+            protocol=ProtocolType.SMTP,
+            starttls_state=StarttlsStatus.ACCEPTED,
+            is_tls_implicit=False,
+            risk_score=60.0,
+            packet_count=2,
+            bytes_transferred=64,
+        ))
+        db.add(Finding(
+            id="finding-newest-created-completed",
+            job_id=newest_job_id,
+            session_id=newest_session_id,
+            rule_id="CRYPT-003",
+            title="Critical protocol finding",
+            category=FindingCategory.TLS_CRYPTO,
+            severity=Severity.CRITICAL,
+            confidence=Confidence.HIGH,
+            status=EvidenceStatus.OBSERVED,
+            score_contribution=18.0,
+            description="Test record for latest completed job selection.",
+        ))
         for index in range(12):
             db.add(AnalysisJob(
                 id=f"job-newer-failed-{index}",
@@ -641,21 +682,21 @@ async def test_capture_views_use_latest_completed_job_and_canonical_risk(client:
     job_id = sample_db_data["job_id"]
     risk_response = await client.get(f"/api/v1/captures/{capture_id}/risk")
     assert risk_response.status_code == 200
-    assert risk_response.json()["job_id"] == job_id
-    assert risk_response.json()["overall_risk_score"] == 75.5
+    assert risk_response.json()["job_id"] == "job-newest-created-completed"
+    assert risk_response.json()["overall_risk_score"] == 60.0
 
     completed_jobs = await client.get(
         f"/api/v1/jobs?capture_id={capture_id}&status=COMPLETED&page_size=1"
     )
     assert completed_jobs.status_code == 200
-    assert completed_jobs.json()["total"] == 1
-    assert completed_jobs.json()["items"][0]["id"] == job_id
+    assert completed_jobs.json()["total"] == 2
+    assert completed_jobs.json()["items"][0]["id"] == "job-newest-created-completed"
 
     capture_report = await client.get(f"/api/v1/captures/{capture_id}/report?format=json")
     assert capture_report.status_code == 200
     report_json = capture_report.json()
-    assert report_json["executive_summary"]["job_id"] == job_id
-    assert report_json["executive_summary"]["overall_risk_score"] == 75.5
+    assert report_json["executive_summary"]["job_id"] == "job-newest-created-completed"
+    assert report_json["executive_summary"]["overall_risk_score"] == 60.0
 
     report_html = await client.get(f"/api/v1/reports/{job_id}?format=html")
     assert report_html.status_code == 200

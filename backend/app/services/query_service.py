@@ -89,7 +89,7 @@ async def get_latest_completed_job(
             AnalysisJob.capture_id == capture_id,
             AnalysisJob.status == JobStatus.COMPLETED,
         )
-        .order_by(AnalysisJob.completed_at.desc(), AnalysisJob.created_at.desc())
+        .order_by(AnalysisJob.created_at.desc())
         .limit(1)
     )
     result = await db.execute(stmt)
