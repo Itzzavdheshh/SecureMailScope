@@ -597,6 +597,9 @@ async def test_v1_reports_json_format(client: AsyncClient, sample_db_data):
     assert data["findings"][0]["rule_id"] in ["CRYPT-001", "X509-001"]
     assert len(data["drifts"]) == 1
     assert data["drifts"][0]["event_type"] == "TLS_VERSION_DOWNGRADE"
+    fingerprint = data["sessions"][0]["cryptographic_security_fingerprint"]
+    assert fingerprint["security_posture"]["analysis_job_risk_score"] == data["executive_summary"]["overall_risk_score"]
+    assert fingerprint["fingerprint_hash"].startswith("sha256:")
 
 
 @pytest.mark.anyio
@@ -612,6 +615,8 @@ async def test_v1_reports_html_format(client: AsyncClient, sample_db_data):
     assert "SecureMailScope Investigation Report" in html
     assert "Deprecated TLS Version (TLS 1.0)" in html
     assert "sample_forensic.pcap" in html
+    assert "Cryptographic Security Fingerprints" in html
+    assert "sha256:" in html
 
 
 @pytest.mark.anyio
@@ -626,6 +631,26 @@ async def test_v1_reports_pdf_format(client: AsyncClient, sample_db_data):
     # Check standard PDF magic header
     assert pdf_bytes.startswith(b"%PDF-")
     assert len(pdf_bytes) > 500
+    assert any(b"Cryptographic Security Fingerprints" in stream for stream in extract_pdf_page_streams(pdf_bytes))
+    assert any(b"sha256:" in stream for stream in extract_pdf_page_streams(pdf_bytes))
+
+
+@pytest.mark.anyio
+async def test_session_fingerprint_api_is_reconstructable_and_comparable(client: AsyncClient, sample_db_data):
+    session_id = sample_db_data["session_id"]
+    fingerprint_response = await client.get(f"/api/v1/sessions/{session_id}/fingerprint")
+    assert fingerprint_response.status_code == 200
+    fingerprint = fingerprint_response.json()
+    assert fingerprint["fingerprint_version"] == "1.0.0"
+    assert fingerprint["stable_profile"]["tls_version"] == "TLS 1.0"
+    assert fingerprint["evidence"]["frames"]["server_hello"] == 7
+
+    comparison_response = await client.get(
+        f"/api/v1/sessions/{session_id}/fingerprint/compare/{session_id}"
+    )
+    assert comparison_response.status_code == 200
+    assert comparison_response.json()["status"] == "UNCHANGED"
+    assert comparison_response.json()["differences"] == []
 
 
 @pytest.mark.anyio

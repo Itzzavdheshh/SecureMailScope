@@ -28,6 +28,7 @@ from app.models import (
     RiskBand,
     BehavioralAnalysis,
 )
+from app.analyzers.security_fingerprint import build_security_fingerprint
 
 # ReportLab imports for PDF generation
 from reportlab.lib import colors
@@ -101,6 +102,7 @@ async def build_report_data_graph(db: AsyncSession, job_id: str) -> Optional[Dic
     )
     infra_res = await db.execute(infra_stmt)
     infrastructure = list(infra_res.scalars().all())
+    infrastructure_by_ip = {item.ip_address: item.id for item in infrastructure}
 
     # Phase 10: Behavioral analyses for this job
     behav_stmt = (
@@ -193,6 +195,9 @@ async def build_report_data_graph(db: AsyncSession, job_id: str) -> Optional[Dic
                     "forward_secrecy": s.tls_handshake.is_forward_secrecy if s.tls_handshake else None,
                     "key_exchange": s.tls_handshake.key_exchange_group if s.tls_handshake else None,
                 } if s.tls_handshake else None,
+                "cryptographic_security_fingerprint": build_security_fingerprint(
+                    s, job.capture_id, job, infrastructure_by_ip.get(s.server_ip)
+                ),
                 "certificates": [
                     {
                         "subject": c.subject_dn,
@@ -535,6 +540,33 @@ def generate_html_report(data: Dict[str, Any]) -> str:
         </div>
 """
 
+    html += """
+        <div class="card">
+            <h2>Cryptographic Security Fingerprints</h2>
+            <table>
+                <thead><tr><th>Session</th><th>TLS</th><th>Cipher</th><th>STARTTLS</th><th>JA3</th><th>JA3S</th><th>Fingerprint Hash</th></tr></thead>
+                <tbody>
+"""
+    for s in sessions:
+        fingerprint = s.get("cryptographic_security_fingerprint", {})
+        profile = fingerprint.get("stable_profile", {})
+        html += f"""
+                    <tr>
+                        <td>#{s.get('session_index')}</td>
+                        <td>{profile.get('tls_version') or 'Not Observed'}</td>
+                        <td>{profile.get('cipher_suite') or 'Not Observed'}</td>
+                        <td>{profile.get('starttls_state') or 'Unknown'}</td>
+                        <td>{profile.get('ja3') or 'Not Observed'}</td>
+                        <td>{profile.get('ja3s') or 'Not Observed'}</td>
+                        <td><code>{fingerprint.get('fingerprint_hash', 'Unavailable')}</code></td>
+                    </tr>
+"""
+    html += """
+                </tbody>
+            </table>
+        </div>
+"""
+
     if drifts:
         html += """
         <div class="card">
@@ -787,6 +819,33 @@ def generate_pdf_report(data: Dict[str, Any]) -> bytes:
             )
         )
         elements.append(sess_table)
+        elements.append(Spacer(1, 12))
+
+        elements.append(Paragraph("Cryptographic Security Fingerprints", h2_style))
+        fingerprint_rows = [[
+            Paragraph("<b>Session</b>", normal_style),
+            Paragraph("<b>TLS / Cipher</b>", normal_style),
+            Paragraph("<b>STARTTLS</b>", normal_style),
+            Paragraph("<b>Fingerprint Hash</b>", normal_style),
+        ]]
+        for session in sessions:
+            fingerprint = session.get("cryptographic_security_fingerprint", {})
+            profile = fingerprint.get("stable_profile", {})
+            tls_cipher = f"{profile.get('tls_version') or 'Not Observed'} / {profile.get('cipher_suite') or 'Not Observed'}"
+            fingerprint_rows.append([
+                Paragraph(f"#{session.get('session_index')}", normal_style),
+                Paragraph(tls_cipher, normal_style),
+                Paragraph(str(profile.get("starttls_state") or "Unknown"), normal_style),
+                Paragraph(str(fingerprint.get("fingerprint_hash", "Unavailable")), code_style),
+            ])
+        fingerprint_table = Table(fingerprint_rows, colWidths=[0.7 * inch, 2.7 * inch, 1.5 * inch, 2.1 * inch])
+        fingerprint_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e2e8f0")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("PADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(fingerprint_table)
         elements.append(Spacer(1, 12))
 
     # Limitations
