@@ -50,6 +50,7 @@ class RuleSet(BaseModel):
 
 
 class RiskWeightsConfig(BaseModel):
+    formula_version: str = "risk_weights_v1.0.0"
     severity_weights: Dict[str, float] = Field(
         default_factory=lambda: {
             "CRITICAL": 18.0,

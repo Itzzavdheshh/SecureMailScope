@@ -128,6 +128,13 @@ async def build_report_data_graph(db: AsyncSession, job_id: str) -> Optional[Dic
         )
 
     now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        job_options = json.loads(job.options_json) if job.options_json else {}
+    except (TypeError, json.JSONDecodeError):
+        job_options = {}
+    scoring_snapshot = job_options.get("risk_scoring") if isinstance(job_options, dict) else None
+    if not isinstance(scoring_snapshot, dict):
+        scoring_snapshot = {"formula_version": "UNKNOWN_LEGACY"}
 
     return {
         "report_metadata": {
@@ -160,6 +167,11 @@ async def build_report_data_graph(db: AsyncSession, job_id: str) -> Optional[Dic
             "severity_distribution": sev_dist,
             "drift_count": len(drifts),
             "completed_at": job.completed_at.isoformat() if job.completed_at else "N/A",
+        },
+        "risk_calculation": {
+            "scope": "ANALYSIS_JOB",
+            "formula_version": scoring_snapshot.get("formula_version", "UNKNOWN_LEGACY"),
+            "configuration": scoring_snapshot,
         },
         "sessions": [
             {
@@ -294,6 +306,7 @@ def generate_html_report(data: Dict[str, Any]) -> str:
     meta = data.get("report_metadata", {})
     cap = data.get("capture", {})
     exec_sum = data.get("executive_summary", {})
+    risk_calculation = data.get("risk_calculation", {})
     findings = data.get("findings", [])
     sessions = data.get("sessions", [])
     drifts = data.get("drifts", [])
@@ -443,6 +456,10 @@ def generate_html_report(data: Dict[str, Any]) -> str:
                 <div>
                     <div class="stat">{exec_sum.get('drift_count', 0)}</div>
                     <div class="stat-label">Drift Events</div>
+                </div>
+                <div>
+                    <div class="stat">{risk_calculation.get('formula_version', 'UNKNOWN_LEGACY')}</div>
+                    <div class="stat-label">Risk Formula</div>
                 </div>
             </div>
         </div>
@@ -650,6 +667,7 @@ def generate_pdf_report(data: Dict[str, Any]) -> bytes:
     meta = data.get("report_metadata", {})
     cap = data.get("capture", {})
     exec_sum = data.get("executive_summary", {})
+    risk_calculation = data.get("risk_calculation", {})
     findings = data.get("findings", [])
     sessions = data.get("sessions", [])
     drifts = data.get("drifts", [])
@@ -681,6 +699,10 @@ def generate_pdf_report(data: Dict[str, Any]) -> bytes:
         [
             Paragraph("<b>Total Sessions / Findings</b>", normal_style),
             Paragraph(f"{exec_sum.get('total_sessions')} Sessions | {exec_sum.get('total_findings')} Findings | {exec_sum.get('drift_count')} Drifts", normal_style),
+        ],
+        [
+            Paragraph("<b>Risk Formula</b>", normal_style),
+            Paragraph(str(risk_calculation.get("formula_version", "UNKNOWN_LEGACY")), code_style),
         ],
     ]
     summary_table = Table(summary_data, colWidths=[2.0 * inch, 5.0 * inch])

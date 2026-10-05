@@ -5,6 +5,7 @@ verifying PCAP reader -> TCP reconstruction -> STARTTLS -> TLS parser -> X.509 -
 """
 
 import io
+import json
 import pytest
 from pathlib import Path
 from sqlalchemy import select
@@ -143,6 +144,28 @@ async def test_scenario_03_weak_cipher_rc4():
             find_res = await session.execute(select(Finding).where(Finding.job_id == job_id))
             findings = find_res.scalars().all()
             assert any(f.rule_id == "CRYPT-005" for f in findings)
+
+            job_res = await session.execute(select(AnalysisJob).where(AnalysisJob.id == job_id))
+            job = job_res.scalar_one()
+            options = json.loads(job.options_json)
+            assert options["risk_scoring"]["formula_version"] == "risk_weights_v1.0.0"
+            assert sum(f.score_contribution for f in findings) == 30.5
+            assert job.overall_risk_score == 100.0
+            canonical_job_score = job.overall_risk_score
+
+        json_report = await client.get(f"/api/v1/reports/{job_id}?format=json")
+        assert json_report.status_code == 200
+        report_data = json_report.json()
+        assert report_data["executive_summary"]["overall_risk_score"] == canonical_job_score
+        assert report_data["risk_calculation"]["formula_version"] == "risk_weights_v1.0.0"
+
+        html_report = await client.get(f"/api/v1/reports/{job_id}?format=html")
+        assert html_report.status_code == 200
+        assert "risk_weights_v1.0.0" in html_report.text
+
+        pdf_report = await client.get(f"/api/v1/reports/{job_id}?format=pdf")
+        assert pdf_report.status_code == 200
+        assert pdf_report.content.startswith(b"%PDF-")
 
 
 @pytest.mark.asyncio

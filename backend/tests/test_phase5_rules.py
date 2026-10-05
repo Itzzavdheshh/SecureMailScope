@@ -483,6 +483,42 @@ def test_24_job_risk_calculation():
     assert job_score == 70.0
 
 
+def test_weak_cipher_score_matches_current_and_legacy_formula_arithmetic():
+    """The historical 75 and current 100 are exactly the two scorer configurations."""
+    weak_cipher_findings = [
+        Finding(
+            rule_id=rule_id,
+            title=rule_id,
+            category=FindingCategory.TLS_CRYPTO,
+            severity=severity,
+            confidence=Confidence.HIGH,
+            description="observed",
+        )
+        for rule_id, severity in (
+            ("CRYPT-005", Severity.CRITICAL),
+            ("CRYPT-004", Severity.HIGH),
+            ("CERT-005", Severity.MEDIUM),
+            ("CERT-006", Severity.LOW),
+        )
+    ]
+    legacy_config = RiskWeightsConfig(
+        formula_version="legacy-unversioned",
+        severity_weights={"CRITICAL": 10.0, "HIGH": 7.0, "MEDIUM": 4.0, "LOW": 1.5, "INFO": 0.5},
+        confidence_factors={"HIGH": 1.0, "MEDIUM": 0.9, "LOW": 0.7, "INSUFFICIENT_EVIDENCE": 0.0},
+        reference_max=30.0,
+    )
+
+    legacy_score, _ = calculate_session_risk_score(
+        weak_cipher_findings, legacy_config
+    )
+    current_score, _ = calculate_session_risk_score(
+        weak_cipher_findings, load_risk_weights_config()
+    )
+
+    assert legacy_score == 75.0
+    assert current_score == 100.0
+
+
 def test_25_risk_bounded_to_0_100():
     """25. Risk bounded to 0–100."""
     findings = [

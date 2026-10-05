@@ -100,6 +100,17 @@ async def run_pipeline(
         active_rules = load_rules_from_directory()
         risk_config = load_risk_weights_config()
 
+        # Snapshot the scoring configuration with this immutable analysis result.
+        try:
+            job_options = json.loads(job.options_json) if job.options_json else {}
+        except (TypeError, json.JSONDecodeError):
+            job_options = {"previous_options_json": job.options_json}
+        if not isinstance(job_options, dict):
+            job_options = {"analysis_options": job_options}
+        job_options["risk_scoring"] = risk_config.model_dump()
+        job.options_json = json.dumps(job_options, sort_keys=True)
+        await db.commit()
+
         # Step 1: Stream frames from PCAP
         flow_manager = TcpFlowManager()
         for pkt in stream_pcap_frames(pcap_path, capture_id=capture.id):

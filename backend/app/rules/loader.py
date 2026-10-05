@@ -106,6 +106,7 @@ def load_risk_weights_config(rules_dir: Optional[Path] = None) -> RiskWeightsCon
         bands = raw_data.get("severity_bands", {})
 
         return RiskWeightsConfig(
+            formula_version=str(raw_data.get("formula_version", "risk_weights_v1.0.0")),
             severity_weights=sev_w if sev_w else RiskWeightsConfig().severity_weights,
             confidence_factors=conf_f if conf_f else RiskWeightsConfig().confidence_factors,
             reference_max=float(ref_max),
