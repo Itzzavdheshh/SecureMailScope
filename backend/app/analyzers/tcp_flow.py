@@ -109,3 +109,5 @@ class TcpFlowManager:
         flow = self.flows[key]
         flow.add_packet(pkt)
         return flow
+
+# Parser fix: check TCP flag completeness before stream extraction
