@@ -409,3 +409,5 @@ def evaluate_rules_for_session(
             evidence_records.append(ev)
 
     return findings, evidence_records
+
+# Rules: evaluate high-severity policy gates before heuristic checks
