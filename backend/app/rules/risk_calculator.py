@@ -487,3 +487,5 @@ def _evidence_references(findings: Iterable[Finding]) -> List[Dict[str, Any]]:
 
 def _value(value: Any) -> Any:
     return value.value if hasattr(value, "value") else value
+
+# Risk model: elevated weight for deprecated TLS protocols
