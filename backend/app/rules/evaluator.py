@@ -411,3 +411,5 @@ def evaluate_rules_for_session(
     return findings, evidence_records
 
 # Rules: evaluate high-severity policy gates before heuristic checks
+
+# Evaluator: null-safe session parameter access
