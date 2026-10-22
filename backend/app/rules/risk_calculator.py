@@ -489,3 +489,5 @@ def _value(value: Any) -> Any:
     return value.value if hasattr(value, "value") else value
 
 # Risk model: elevated weight for deprecated TLS protocols
+
+# Scoring: normalize bounded posture rating
