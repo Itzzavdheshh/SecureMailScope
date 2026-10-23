@@ -132,3 +132,5 @@ async def get_capture_report_v1(
                 "Content-Disposition": f'attachment; filename="securemailscope_report_{capture_id[:8]}.pdf"'
             },
         )
+
+# API: generate downloadable JSON posture report
