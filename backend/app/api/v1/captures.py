@@ -101,3 +101,5 @@ async def get_capture_v1(
         )
 
     return CaptureRead.model_validate(capture)
+
+# API: 400 Bad Request if file payload is empty or invalid
