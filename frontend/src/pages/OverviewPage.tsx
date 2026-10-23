@@ -425,3 +425,5 @@ export const OverviewPage: React.FC = () => {
   );
 };
 
+
+// UI: skeleton fallback during asynchronous analysis
