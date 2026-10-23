@@ -226,3 +226,5 @@ def analyze_certificate_chain(
     )
 
 # Cert analyzer: validate notBefore and notAfter boundaries
+
+# Cert analyzer: self-signed issuer check
