@@ -39,3 +39,5 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     </div>
   );
 };
+
+// UI: session detail inspector panel
