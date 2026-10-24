@@ -286,3 +286,5 @@ rules:
     confidence_when_missing: INSUFFICIENT_EVIDENCE
 
 # TLS Rule: Critical severity on export ciphers
+
+# TLS Rule: Mandatory PFS requirement
