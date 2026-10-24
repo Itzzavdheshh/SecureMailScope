@@ -491,3 +491,5 @@ def _value(value: Any) -> Any:
 # Risk model: elevated weight for deprecated TLS protocols
 
 # Scoring: normalize bounded posture rating
+
+# Risk: safe zero-weight denominator check
