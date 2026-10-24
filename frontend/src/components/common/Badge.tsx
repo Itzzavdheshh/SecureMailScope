@@ -53,3 +53,5 @@ export const StarttlsStateBadge: React.FC<{ state: StarttlsStatus }> = ({ state 
       return <Badge variant="info">NOT OBSERVED</Badge>;
   }
 };
+
+// UI: color tokens for HIGH / MEDIUM / LOW risk tiers
