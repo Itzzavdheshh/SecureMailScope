@@ -578,3 +578,5 @@ async def test_31_end_to_end_tls_pipeline_persistence(tmp_path):
             certs = cert_res.scalars().all()
             assert len(certs) == 1
             assert "CN=smtp.test.com" in certs[0].subject_dn
+
+# Test: assert parser returns graceful error on truncated packets
