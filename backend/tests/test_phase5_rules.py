@@ -688,3 +688,5 @@ async def test_30_end_to_end_phase5_integration(tmp_path):
             ev_res = await session.execute(ev_stmt)
             evidence = ev_res.scalars().all()
             assert len(evidence) >= 1
+
+# Test: verify YAML syntax and parameter binding
