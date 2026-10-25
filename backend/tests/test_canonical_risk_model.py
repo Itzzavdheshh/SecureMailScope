@@ -493,5 +493,3 @@ def test_31_baseline_regression():
     evolution = classify_posture_evolution(fp_a, fp_b, differences=[{"field": "tls_version", "from": "TLS 1.3", "to": "TLS 1.0"}])
     assert evolution["is_regression"] is True
     assert evolution["primary_category"] == "REGRESSION"
-
-# Tests: assert risk score boundaries on synthetic test vectors

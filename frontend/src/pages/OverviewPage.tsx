@@ -425,7 +425,3 @@ export const OverviewPage: React.FC = () => {
   );
 };
 
-
-// UI: skeleton fallback during asynchronous analysis
-
-// UI: memoize chart data series

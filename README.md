@@ -89,5 +89,3 @@ cd frontend
 npx tsc --noEmit
 npm run build
 ```
-
-<!-- API Quickstart curl usage examples -->

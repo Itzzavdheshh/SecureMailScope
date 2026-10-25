@@ -60,5 +60,3 @@ certificates unavailable in the capture remain not observed.
 The session API and JSON/HTML/PDF reports expose the same derived version/hash.
 No longitudinal fleet clustering or automated posture-evolution scoring is
 implemented in this foundation.
-
-<!-- Schema versioning and hash digest contract -->

@@ -522,5 +522,3 @@ def parse_certificate_msg(payload: bytes, frame_number: int = 0, timestamp: floa
 
     except Exception:
         return None
-
-# TLS parser: guard extension length underflows

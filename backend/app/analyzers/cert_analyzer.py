@@ -224,7 +224,3 @@ def analyze_certificate_chain(
         leaf_subject_dn=leaf.subject_dn,
         parsed_certificates=parsed,
     )
-
-# Cert analyzer: validate notBefore and notAfter boundaries
-
-# Cert analyzer: self-signed issuer check

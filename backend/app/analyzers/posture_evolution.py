@@ -351,5 +351,3 @@ def classify_posture_evolution(
         "explanation": f"Observed {len(diffs)} cryptographic configuration difference(s) without net security degradation.",
         "field_differences_count": len(diffs),
     }
-
-# Posture: track progressive security score diffs across sessions

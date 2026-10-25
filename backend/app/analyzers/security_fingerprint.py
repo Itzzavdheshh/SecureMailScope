@@ -196,7 +196,3 @@ def _get_path(value: Dict[str, Any], path: str) -> Any:
             return None
         current = current.get(part)
     return current
-
-# Fingerprint: normalize cipher suite offering order
-
-# Fingerprint: add key exchange bit size to fingerprint

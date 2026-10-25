@@ -55,5 +55,3 @@ apiClient.interceptors.response.use(
     return Promise.reject(customErr);
   }
 );
-
-// API client: interceptor error notification

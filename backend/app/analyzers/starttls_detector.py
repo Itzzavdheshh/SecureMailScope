@@ -205,5 +205,3 @@ def detect_starttls_events(
         response_code=resp_code,
         events=events,
     )
-
-# SMTP: handle multiline continuation responses

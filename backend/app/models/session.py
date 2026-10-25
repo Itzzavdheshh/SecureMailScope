@@ -220,5 +220,3 @@ class TlsHandshake(Base):
     session: Mapped["EmailSession"] = relationship(
         "EmailSession", back_populates="tls_handshake"
     )
-
-# DB model: composite index for session lookup

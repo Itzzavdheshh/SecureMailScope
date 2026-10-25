@@ -111,5 +111,3 @@ def stream_pcap_frames(
             except Exception:
                 # Malformed frame protection: continue reading next packet
                 continue
-
-# Perf: chunk-based packet iteration

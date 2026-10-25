@@ -104,5 +104,3 @@ async def init_db() -> None:
 
         await conn.run_sync(_migrate)
 
-
-# DB: context-managed transaction isolation
