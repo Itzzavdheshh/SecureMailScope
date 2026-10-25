@@ -175,3 +175,5 @@ export const ReportsPage: React.FC = () => {
     </div>
   );
 };
+
+// UI: report download trigger
