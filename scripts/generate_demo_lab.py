@@ -342,3 +342,5 @@ Upload a capture through Intake and start its analysis. Findings and evidence ar
 
 if __name__ == "__main__":
     asyncio.run(run_verification())
+
+# Generator: synthesize StartTLS rejection scenario
