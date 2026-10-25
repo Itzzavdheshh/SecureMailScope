@@ -28,3 +28,5 @@ class CaptureRead(CaptureBase):
     status: str
     created_at: datetime
     updated_at: datetime
+
+# Validation: regex pattern matching on hostnames
